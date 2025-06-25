@@ -21,7 +21,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common Commands
 
-### Development
+### Using Make (Recommended)
+The project includes a Makefile with essential development commands:
+
+```bash
+make build         # Build the package
+make format        # Format code with ruff
+make test          # Run tests and CLI functionality check
+```
+
+### Direct UV Commands
 - **Install dependencies**: `uv sync`
 - **Add a dependency**: `uv add <package>`
 - **Add a dev dependency**: `uv add --dev <package>`
@@ -91,3 +100,100 @@ The tool processes Claude Code transcript JSONL files which contain conversation
 - **Output**: 
   - Terminal-formatted text (with syntax highlighting, formatting)
   - HTML files (with styling, code blocks, conversation structure)
+
+## Git Workflow
+
+This project follows a structured Git workflow to maintain code quality and enable collaboration:
+
+### Branch Strategy
+- **Main branch**: `main` - stable, production-ready code
+- **Feature branches**: `feature/description` or `fix/description` - for all changes
+- Never commit directly to `main` - always use pull requests
+
+### Development Process
+
+1. **Create feature branch**:
+   ```bash
+   git checkout main
+   git pull origin main
+   git checkout -b feature/add-new-formatter
+   ```
+
+2. **Make changes with frequent commits**:
+   ```bash
+   # Make logical changes
+   uv run ruff format  # Format code
+   uv run ruff check   # Lint code
+   git add .
+   git commit -m "feat: add basic HTML formatter structure"
+   
+   # Continue with more changes
+   # Commit after each logical change
+   git commit -m "feat: implement HTML message formatting"
+   git commit -m "style: add CSS styling for HTML output"
+   git commit -m "test: verify HTML formatter works correctly"
+   ```
+
+3. **Before each commit, always run**:
+   ```bash
+   make format           # Format code
+   make test             # Test functionality
+   uv run ruff check     # Check for linting issues
+   ```
+
+4. **Push and create PR**:
+   ```bash
+   git push origin feature/add-new-formatter
+   # Create pull request on GitHub
+   ```
+
+### Commit Message Convention
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Build/tooling changes
+
+**Examples:**
+```bash
+git commit -m "feat: add HTML export functionality"
+git commit -m "fix: handle empty conversation files gracefully"
+git commit -m "docs: update README with installation instructions"
+git commit -m "style: format code with ruff"
+git commit -m "refactor: extract formatter base class"
+git commit -m "test: add unit tests for JSONL parser"
+git commit -m "chore: update dependencies in pyproject.toml"
+```
+
+### Quality Gates
+
+Before committing:
+1. ✅ Code is formatted with `make format`
+2. ✅ No linting errors from `uv run ruff check`
+3. ✅ CLI tool runs without errors with `make test`
+4. ✅ Commit follows conventional commit format
+5. ✅ Commit represents one logical change
+
+### Pre-commit Hooks (Optional)
+
+Install pre-commit hooks to automate quality checks:
+```bash
+uv add --dev pre-commit
+uv run pre-commit install
+```
+
+This will automatically run formatting and linting before each commit.
