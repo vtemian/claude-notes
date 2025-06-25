@@ -1,6 +1,5 @@
 """Factory for creating formatters based on output format."""
 
-
 from rich.console import Console
 
 from claude_notes.formatters.base import BaseFormatter, OutputFormat
