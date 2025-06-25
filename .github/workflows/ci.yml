@@ -23,7 +23,7 @@ jobs:
       run: uv python install 3.12
     
     - name: Install dependencies
-      run: uv sync
+      run: uv sync --extra dev
     
     - name: Format code
       run: make format
