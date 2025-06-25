@@ -6,6 +6,10 @@ Transform Claude Code transcript JSONL files into readable terminal and HTML for
 
 Claude Notes is a command-line tool that converts Claude Code conversation transcripts (stored as JSONL files) into human-readable formats. It supports both terminal output with rich formatting and HTML export for web viewing.
 
+```bash
+uvx claude-notes show --format html --output conversations.html
+```
+
 ## Features
 
 - Terminal display with syntax highlighting and rich formatting
@@ -16,64 +20,32 @@ Claude Notes is a command-line tool that converts Claude Code conversation trans
 - Tool result formatting - properly displays Bash, Read, Edit, MultiEdit, and Grep tool usage
 - Navigation links - jump to specific messages in HTML output
 
-## Installation
-
-### Using uv (recommended)
-
-```bash
-# Install from source
-git clone https://github.com/yourusername/claude-notes.git
-cd claude-notes
-uv sync
-uv run claude-notes --help
-```
-
-### Using pip
-
-```bash
-# Install from source
-git clone https://github.com/yourusername/claude-notes.git
-cd claude-notes
-pip install -e .
-claude-notes --help
-```
-
 ## Usage
-
-### List Available Projects
-
-```bash
-claude-notes list-projects
-```
-
-This shows all Claude Code projects found in `~/.claude/projects/` with their transcript counts.
-
-### View Conversations
-
-#### Terminal Output (Default)
-
-```bash
-# View conversations for current directory
-claude-notes show
-
-# View conversations for specific project path
-claude-notes show /path/to/project
-
-# Disable pager (show all at once)
-claude-notes show --no-pager
-
-# Show raw JSON data
-claude-notes show --raw
-```
 
 #### HTML Output
 
 ```bash
 # Export to HTML file
-claude-notes show --format html --output conversations.html
+uvx claude-notes show --format html --output conversations.html
 
 # Print HTML to stdout
-claude-notes show --format html
+uvx claude-notes show --format html
+```
+
+#### Terminal Output
+
+```bash
+# View conversations for current directory
+uvx claude-notes show
+
+# View conversations for specific project path
+uvx claude-notes show /path/to/project
+
+# Disable pager (show all at once)
+uvx claude-notes show --no-pager
+
+# Show raw JSON data
+uvx claude-notes show --raw
 ```
 
 ### Examples
