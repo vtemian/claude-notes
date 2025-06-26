@@ -48,22 +48,6 @@ uvx claude-notes show --no-pager
 uvx claude-notes show --raw
 ```
 
-### Examples
-
-```bash
-# View current project conversations in terminal
-claude-notes show
-
-# Export project conversations to HTML
-claude-notes show /Users/john/myproject --format html --output myproject-conversations.html
-
-# Browse all conversations with interactive pager
-claude-notes show --no-pager=false
-
-# See all available Claude projects
-claude-notes list-projects
-```
-
 ## HTML Features
 
 The HTML output includes:
