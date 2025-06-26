@@ -7,6 +7,13 @@ Transform Claude Code transcript JSONL files into readable terminal and HTML for
 Claude Notes is a command-line tool that converts Claude Code conversation transcripts (stored as JSONL files) into human-readable formats. It supports both terminal output with rich formatting and HTML export for web viewing.
 
 ```bash
+uvx claude-notes show
+```
+
+https://github.com/user-attachments/assets/8053d470-19d3-42e4-8376-6327d57356c6
+
+
+```bash
 uvx claude-notes show --format html --output conversations.html
 ```
 
