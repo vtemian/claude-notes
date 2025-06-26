@@ -29,6 +29,10 @@ https://github.com/user-attachments/assets/e4cb9404-bdee-4a12-8e06-e1e2216b9165
 - Tool result formatting - properly displays Bash, Read, Edit, MultiEdit, and Grep tool usage
 - Navigation links - jump to specific messages in HTML output
 
+## Acknowledge
+
+This tool was heavily inspired by https://github.com/daaain/claude-code-log
+
 ## Usage
 
 #### HTML Output
