@@ -10,12 +10,14 @@ Claude Notes is a command-line tool that converts Claude Code conversation trans
 uvx claude-notes show
 ```
 
-https://github.com/user-attachments/assets/8053d470-19d3-42e4-8376-6327d57356c6
-
+https://github.com/user-attachments/assets/ca710fb3-558a-4ce5-9bf5-e42c80caf2bf
 
 ```bash
 uvx claude-notes show --format html --output conversations.html
 ```
+
+https://github.com/user-attachments/assets/e4cb9404-bdee-4a12-8e06-e1e2216b9165
+
 
 ## Features
 
@@ -26,6 +28,10 @@ uvx claude-notes show --format html --output conversations.html
 - Humanized timestamps - shows "2 hours ago" instead of raw timestamps
 - Tool result formatting - properly displays Bash, Read, Edit, MultiEdit, and Grep tool usage
 - Navigation links - jump to specific messages in HTML output
+
+## Acknowledge
+
+This tool was heavily inspired by https://github.com/daaain/claude-code-log
 
 ## Usage
 
