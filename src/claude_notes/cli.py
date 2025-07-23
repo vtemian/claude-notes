@@ -1,6 +1,6 @@
 """CLI commands for claude-notes."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -109,7 +109,7 @@ def parse_start_time(time_str: str) -> datetime | None:
         # Parse the ISO format datetime
         dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
         # Convert to UTC if it has timezone info
-        return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(datetime.UTC) if dt.tzinfo else dt.replace(tzinfo=datetime.UTC)
     except ValueError:
         return None
 
@@ -157,7 +157,7 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
             start_time = parse_start_time(info.get("start_time", ""))
 
             # Get file modification time as fallback (in UTC)
-            file_mtime = datetime.fromtimestamp(jsonl_file.stat().st_mtime, tz=timezone.utc)
+            file_mtime = datetime.fromtimestamp(jsonl_file.stat().st_mtime, tz=datetime.UTC)
 
             conversations.append(
                 {
@@ -174,7 +174,7 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
     # Sort conversations by start time (newest first), with file modification time as fallback
     # Use timezone-aware datetime.min to avoid comparison issues
     conversations.sort(
-        key=lambda x: x["start_time"] or x["file_mtime"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True
+        key=lambda x: x["start_time"] or x["file_mtime"] or datetime.min.replace(tzinfo=datetime.UTC), reverse=True
     )
 
     if raw:
