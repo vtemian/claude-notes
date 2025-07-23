@@ -1,6 +1,6 @@
 """CLI commands for claude-notes."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -22,6 +22,7 @@ def decode_project_path(encoded_name: str) -> str:
     # Remove leading dash and replace dashes with slashes
     if encoded_name.startswith("-"):
         encoded_name = encoded_name[1:]
+
     return "/" + encoded_name.replace("-", "/")
 
 
@@ -99,6 +100,20 @@ def find_project_folder(project_path: Path) -> Path | None:
     return None
 
 
+def parse_start_time(time_str: str) -> datetime | None:
+    """Parse ISO format datetime string and convert to UTC."""
+    if not time_str:
+        return None
+
+    try:
+        # Parse the ISO format datetime
+        dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+        # Convert to UTC if it has timezone info
+        return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 @cli.command()
 @click.argument("path", type=click.Path(exists=True, path_type=Path), default=".")
 @click.option("--raw", is_flag=True, help="Show raw JSON data instead of formatted view")
@@ -138,16 +153,11 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
             info = parser.get_conversation_info()
             messages = parser.get_messages()
 
-            # Get the start timestamp for sorting
-            start_time = None
-            if info.get("start_time"):
-                try:
-                    start_time = datetime.fromisoformat(info["start_time"].replace("Z", "+00:00"))
-                except ValueError:
-                    pass
+            # Get the start timestamp for sorting (convert to UTC)
+            start_time = parse_start_time(info.get("start_time", ""))
 
-            # Get file modification time as fallback
-            file_mtime = datetime.fromtimestamp(jsonl_file.stat().st_mtime)
+            # Get file modification time as fallback (in UTC)
+            file_mtime = datetime.fromtimestamp(jsonl_file.stat().st_mtime, tz=timezone.utc)
 
             conversations.append(
                 {
@@ -162,7 +172,10 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
             console.print(f"[red]Error parsing {jsonl_file.name}: {e}[/red]")
 
     # Sort conversations by start time (newest first), with file modification time as fallback
-    conversations.sort(key=lambda x: x["start_time"] or x["file_mtime"] or datetime.min, reverse=True)
+    # Use timezone-aware datetime.min to avoid comparison issues
+    conversations.sort(
+        key=lambda x: x["start_time"] or x["file_mtime"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True
+    )
 
     if raw:
         # Display raw JSON data
