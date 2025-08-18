@@ -115,13 +115,35 @@ def parse_start_time(time_str: str) -> datetime | None:
         return None
 
 
+def order_messages(messages: list, message_order: str) -> list:
+    """Order messages based on the specified order."""
+    if message_order == "asc":
+        return messages
+    else:  # desc
+        return list(reversed(messages))
+
+
 @cli.command()
 @click.argument("path", type=click.Path(exists=True, path_type=Path), default=".")
 @click.option("--raw", is_flag=True, help="Show raw JSON data instead of formatted view")
 @click.option("--no-pager", is_flag=True, help="Disable pager and show all content at once")
 @click.option("--format", type=click.Choice(["terminal", "html"]), default="terminal", help="Output format")
 @click.option("--output", type=click.Path(), help="Output file for HTML format")
-def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None):
+@click.option(
+    "--session-order",
+    type=click.Choice(["asc", "desc"]),
+    default="desc",
+    help="Order sessions by timestamp (asc=oldest first, desc=newest first)",
+)
+@click.option(
+    "--message-order",
+    type=click.Choice(["asc", "desc"]),
+    default="desc",
+    help="Order messages within sessions (asc=oldest first, desc=newest first)",
+)
+def show(
+    path: Path, raw: bool, no_pager: bool, format: str, output: str | None, session_order: str, message_order: str
+):
     """Show all conversations for a Claude project.
 
     If PATH is not specified, uses the current directory.
@@ -172,10 +194,11 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
         except Exception as e:
             console.print(f"[red]Error parsing {jsonl_file.name}: {e}[/red]")
 
-    # Sort conversations by start time (newest first), with file modification time as fallback
+    # Sort conversations by start time, with file modification time as fallback
     # Use timezone-aware datetime.min to avoid comparison issues
     conversations.sort(
-        key=lambda x: x["start_time"] or x["file_mtime"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True
+        key=lambda x: x["start_time"] or x["file_mtime"] or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=(session_order == "desc"),
     )
 
     if raw:
@@ -218,9 +241,9 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
             html_parts.append("</div>")
 
         for i, conv in enumerate(conversations):
-            # Reverse the messages so newest appears first
-            reversed_messages = list(reversed(conv["messages"]))
-            html_content = formatter.format_conversation(reversed_messages, conv["info"])
+            # Order the messages based on user preference
+            ordered_messages = order_messages(conv["messages"], message_order)
+            html_content = formatter.format_conversation(ordered_messages, conv["info"])
             html_parts.append(html_content)
             if i < len(conversations) - 1:
                 html_parts.append('<hr style="margin: 40px 0; border: 1px solid #e1e5e9;">')
@@ -253,9 +276,9 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
         if no_pager:
             # Display all content at once without pager
             for _i, conv in enumerate(conversations):
-                # Reverse the messages so newest appears first
-                reversed_messages = list(reversed(conv["messages"]))
-                formatter.display_conversation(reversed_messages, conv["info"])
+                # Order the messages based on user preference
+                ordered_messages = order_messages(conv["messages"], message_order)
+                formatter.display_conversation(ordered_messages, conv["info"])
         else:
             # Use pager for progressive display
             from claude_notes.pager import Pager
@@ -264,9 +287,9 @@ def show(path: Path, raw: bool, no_pager: bool, format: str, output: str | None)
 
             # Collect all formatted content first
             for _i, conv in enumerate(conversations):
-                # Reverse the messages so newest appears first
-                reversed_messages = list(reversed(conv["messages"]))
-                pager.add_conversation(reversed_messages, conv["info"], formatter)
+                # Order the messages based on user preference
+                ordered_messages = order_messages(conv["messages"], message_order)
+                pager.add_conversation(ordered_messages, conv["info"], formatter)
 
             # Start the pager interface
             pager.display()
