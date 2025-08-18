@@ -45,19 +45,19 @@ make test          # Run tests and CLI functionality check
 uv run claude-notes list-projects
 
 # Show transcripts for current directory (with pager)
-uv run claude-notes .
+uv run claude-notes show .
 
 # Show transcripts for specific project
-uv run claude-notes /path/to/project
+uv run claude-notes show /path/to/project
 
 # Show all content at once without pager
-uv run claude-notes . --no-pager
+uv run claude-notes show . --no-pager
 
 # Show raw JSON data
-uv run claude-notes . --raw
+uv run claude-notes show . --raw
 
 # Run with uvx (after publishing)
-uvx claude-notes .
+uvx claude-notes show .
 ```
 
 ### Pager Controls

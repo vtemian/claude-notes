@@ -37,6 +37,9 @@ Documentation = "https://github.com/yourusername/claude-notes#readme"
 claude-notes = "claude_notes.__main__:main"
 
 [project.optional-dependencies]
+animation = [
+    "asciinema>=2.3.0",
+]
 dev = [
     "ruff>=0.1.0",
     "pytest>=7.0.0",
