@@ -1,0 +1,167 @@
+/* Dark theme with card-based layout */
+
+body {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+.conversation {
+    background-color: #2d2d2d;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    margin: 20px auto;
+    padding: 30px;
+}
+
+.conversation-header {
+    background: linear-gradient(135deg, #4a5568, #2d3748);
+    color: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin: -30px -30px 30px -30px;
+    border-bottom: none;
+}
+
+.conversation-header h2 {
+    color: white;
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.message-group {
+    background-color: #3a3a3a;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4a9eff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.message-group.user {
+    border-left-color: #ff6b6b;
+    background-color: #2c1810;
+}
+
+.message-group.assistant {
+    border-left-color: #51cf66;
+    background-color: #0a2818;
+}
+
+.message-header {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 10px 15px;
+    margin: -20px -20px 15px -20px;
+    border-bottom: none;
+}
+
+.message-title {
+    color: #ffffff;
+    font-size: 1.2em;
+}
+
+.anchor-link {
+    color: #888;
+}
+
+.anchor-link:hover {
+    color: #4a9eff;
+}
+
+.message-timestamp {
+    color: #aaa;
+}
+
+.tool-use {
+    background-color: #404040;
+    border: 1px solid #555;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tool-header {
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: -15px -15px 10px -15px;
+    padding: 10px 15px;
+    border-radius: 8px 8px 0 0;
+}
+
+.bash-tool .tool-header {
+    background-color: rgba(220, 53, 69, 0.2);
+    color: #ff6b6b;
+}
+
+.read-tool .tool-header {
+    background-color: rgba(40, 167, 69, 0.2);
+    color: #51cf66;
+}
+
+.edit-tool .tool-header,
+.multiedit-tool .tool-header {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ffd43b;
+}
+
+.grep-tool .tool-header {
+    background-color: rgba(23, 162, 184, 0.2);
+    color: #4a9eff;
+}
+
+.tool-output, .file-preview, .diff-preview {
+    background-color: #1a1a1a;
+    border: 1px solid #555;
+    color: #e0e0e0;
+}
+
+.diff-line.removed {
+    background-color: rgba(220, 53, 69, 0.2);
+    color: #ff6b6b;
+}
+
+.diff-line.added {
+    background-color: rgba(40, 167, 69, 0.2);
+    color: #51cf66;
+}
+
+.text-content code {
+    background-color: #404040;
+    color: #ffd43b;
+    border: 1px solid #555;
+}
+
+.system-reminder {
+    background-color: rgba(255, 193, 7, 0.15);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: #ffd43b;
+}
+
+.conversation-nav {
+    background-color: #2d2d2d;
+    border: 1px solid #555;
+    color: #e0e0e0;
+}
+
+.conversation-nav h2 {
+    color: #ffffff;
+}
+
+.conversation-toc a {
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    color: #4a9eff;
+}
+
+.conversation-toc a:hover {
+    background-color: #404040;
+    border-color: #4a9eff;
+}
+
+.back-to-top a {
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    color: #aaa;
+}
+
+.back-to-top a:hover {
+    background-color: #404040;
+    color: #4a9eff;
+}
