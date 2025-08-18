@@ -141,8 +141,16 @@ def order_messages(messages: list, message_order: str) -> list:
     default="desc",
     help="Order messages within sessions (asc=oldest first, desc=newest first)",
 )
+@click.option("--style", type=click.Path(exists=True), help="Custom CSS file to include with HTML format")
 def show(
-    path: Path, raw: bool, no_pager: bool, format: str, output: str | None, session_order: str, message_order: str
+    path: Path,
+    raw: bool,
+    no_pager: bool,
+    format: str,
+    output: str | None,
+    session_order: str,
+    message_order: str,
+    style: str | None,
 ):
     """Show all conversations for a Claude project.
 
@@ -211,7 +219,7 @@ def show(
     elif format == "html":
         # Generate HTML output
         from claude_notes.formatters.factory import FormatterFactory
-        from claude_notes.formatters.html import get_html_css
+        from claude_notes.formatters.html import get_extra_html_css, get_html_css
 
         formatter = FormatterFactory.create_formatter("html")
 
@@ -224,6 +232,7 @@ def show(
         html_parts.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
         html_parts.append("<title>Claude Conversations</title>")
         html_parts.append(get_html_css())
+        html_parts.append(get_extra_html_css(style))
         html_parts.append("</head>")
         html_parts.append("<body>")
         html_parts.append('<div class="container">')
