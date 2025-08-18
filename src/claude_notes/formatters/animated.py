@@ -13,6 +13,52 @@ from claude_notes.formatters.base import BaseFormatter
 from claude_notes.formatters.tools import format_tool_use
 
 
+# Emoji fallback mappings for GIF export (since emoji don't render well in many terminal fonts)
+EMOJI_FALLBACKS = {
+    "🤖": "[Bot]",
+    "👤": "[User]", 
+    "🔧": "[Tool]",
+    "✓": "[OK]",
+    "❌": "[X]",
+    "⏰": "[Time]",
+    "📊": "[Chart]",
+    "🎯": "[Target]",
+    "🎬": "[Video]",
+    "🎨": "[Art]",
+    "💡": "[Idea]",
+    "⏱️": "[Timer]",
+    "📁": "[Folder]",
+    "📄": "[File]",
+    "🔍": "[Search]",
+    "🚀": "[Rocket]",
+    "⚡": "[Flash]",
+    "🔥": "[Fire]",
+    "💻": "[Computer]",
+    "🐛": "[Bug]",
+    "✨": "[Sparkle]",
+    "🎉": "[Party]",
+    "⚠️": "[Warning]",
+    "ℹ️": "[Info]",
+    "🔒": "[Lock]",
+    "🔓": "[Unlock]",
+    "📝": "[Note]",
+    "📋": "[Clipboard]",
+    "🗂️": "[Files]",
+    "💾": "[Save]",
+    "🔄": "[Refresh]",
+    "⬆️": "[Up]",
+    "⬇️": "[Down]",
+    "➡️": "[Right]",
+    "⬅️": "[Left]",
+    "🟢": "[Green]",
+    "🔴": "[Red]",
+    "🟡": "[Yellow]",
+    "🔵": "[Blue]",
+    "⚪": "[White]",
+    "⚫": "[Black]",
+}
+
+
 class AnimatedFormatter(BaseFormatter):
     """Format Claude conversations as animated GIFs via asciinema."""
 
@@ -23,6 +69,7 @@ class AnimatedFormatter(BaseFormatter):
         cols: int = 120,
         rows: int = 30,
         max_duration: float | None = None,
+        use_emoji_fallbacks: bool = True,
     ):
         """Initialize the animated formatter.
 
@@ -32,6 +79,7 @@ class AnimatedFormatter(BaseFormatter):
             cols: Terminal columns
             rows: Terminal rows
             max_duration: Maximum duration in seconds (None for unlimited)
+            use_emoji_fallbacks: Replace emoji with text fallbacks for GIF compatibility
         """
         super().__init__()
         self.typing_speed = typing_speed
@@ -39,6 +87,7 @@ class AnimatedFormatter(BaseFormatter):
         self.cols = cols
         self.rows = rows
         self.max_duration = max_duration
+        self.use_emoji_fallbacks = use_emoji_fallbacks
         self._check_dependencies()
 
     def _check_dependencies(self) -> None:
@@ -364,6 +413,11 @@ class AnimatedFormatter(BaseFormatter):
         message_data = first_msg.get("message", {})
         role = message_data.get("role", "unknown")
 
+        # Add marker for user messages to delimit where user starts typing
+        if role == "user":
+            events.append([current_time, "m", "User Input"])
+            current_time += 0.1  # Small delay after marker
+
         # Process each message in the group
         message_parts = []
 
@@ -408,13 +462,14 @@ class AnimatedFormatter(BaseFormatter):
         # Add role label
         if role == "user":
             role_label = "👤 Human: "
-            events.append([current_time, "o", role_label])
         elif role == "assistant":
             role_label = "🤖 Assistant: "
-            events.append([current_time, "o", role_label])
         else:
             role_label = f"[{role}]: "
-            events.append([current_time, "o", role_label])
+        
+        # Apply emoji fallbacks if enabled
+        role_label = self._replace_emoji_with_fallbacks(role_label)
+        events.append([current_time, "o", role_label])
 
         current_time += 0.2  # Pause after role label
 
@@ -430,6 +485,9 @@ class AnimatedFormatter(BaseFormatter):
 
             # Convert markdown to plain text for animation
             plain_text = self._markdown_to_plain_text(part)
+            
+            # Apply emoji fallbacks if enabled
+            plain_text = self._replace_emoji_with_fallbacks(plain_text)
 
             # Handle multi-line content with proper indentation
             lines = plain_text.replace("\r\n", "\n").split("\n")
@@ -519,6 +577,8 @@ class AnimatedFormatter(BaseFormatter):
 
             output += f"✓ Result: {result_text}\r\n"
 
+        # Apply emoji fallbacks to the tool output
+        output = self._replace_emoji_with_fallbacks(output)
         return output
 
     def _parse_special_tags(self, content: str) -> str:
@@ -570,4 +630,15 @@ class AnimatedFormatter(BaseFormatter):
         """Strip Rich console markup from text."""
         # Remove Rich markup like [bold red], [/bold red], etc.
         text = re.sub(r"\[/?[^\]]+\]", "", text)
+        return text
+
+    def _replace_emoji_with_fallbacks(self, text: str) -> str:
+        """Replace emoji with text fallbacks if enabled."""
+        if not self.use_emoji_fallbacks:
+            return text
+        
+        # Replace each emoji with its text fallback
+        for emoji, fallback in EMOJI_FALLBACKS.items():
+            text = text.replace(emoji, fallback)
+        
         return text
