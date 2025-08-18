@@ -568,6 +568,22 @@ HTML_TOOL_FORMATTERS = {
 }
 
 
+def get_extra_html_css(css_file_path: str | None = None) -> str:
+    """Return extra CSS styles from a custom stylesheet file."""
+    if not css_file_path:
+        return ""
+
+    try:
+        css_path = Path(css_file_path)
+        if css_path.exists():
+            return f"\n<style>\n{css_path.read_text(encoding='utf-8')}\n</style>"
+    except Exception:
+        # Silently ignore errors reading the CSS file
+        pass
+
+    return ""
+
+
 def get_html_css() -> str:
     """Return CSS styles for HTML output."""
     return """
