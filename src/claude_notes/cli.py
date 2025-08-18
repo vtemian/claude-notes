@@ -151,7 +151,11 @@ def order_messages(messages: list, message_order: str) -> list:
 @click.option("--cols", type=int, default=120, help="Terminal columns (animated format)")
 @click.option("--rows", type=int, default=30, help="Terminal rows (animated format)")
 @click.option("--max-duration", type=float, help="Maximum animation duration in seconds (animated format)")
-@click.option("--emoji-fallbacks", is_flag=True, help="Replace emoji with text fallbacks for better GIF compatibility (animated format)")
+@click.option(
+    "--emoji-fallbacks",
+    is_flag=True,
+    help="Replace emoji with text fallbacks for better GIF compatibility (animated format)",
+)
 def show(
     path: Path,
     raw: bool,

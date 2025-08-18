@@ -16,7 +16,7 @@ from claude_notes.formatters.tools import format_tool_use
 # Emoji fallback mappings for GIF export (since emoji don't render well in many terminal fonts)
 EMOJI_FALLBACKS = {
     "🤖": "[Bot]",
-    "👤": "[User]", 
+    "👤": "[User]",
     "🔧": "[Tool]",
     "✓": "[OK]",
     "❌": "[X]",
@@ -466,7 +466,7 @@ class AnimatedFormatter(BaseFormatter):
             role_label = "🤖 Assistant: "
         else:
             role_label = f"[{role}]: "
-        
+
         # Apply emoji fallbacks if enabled
         role_label = self._replace_emoji_with_fallbacks(role_label)
         events.append([current_time, "o", role_label])
@@ -485,7 +485,7 @@ class AnimatedFormatter(BaseFormatter):
 
             # Convert markdown to plain text for animation
             plain_text = self._markdown_to_plain_text(part)
-            
+
             # Apply emoji fallbacks if enabled
             plain_text = self._replace_emoji_with_fallbacks(plain_text)
 
@@ -636,9 +636,9 @@ class AnimatedFormatter(BaseFormatter):
         """Replace emoji with text fallbacks if enabled."""
         if not self.use_emoji_fallbacks:
             return text
-        
+
         # Replace each emoji with its text fallback
         for emoji, fallback in EMOJI_FALLBACKS.items():
             text = text.replace(emoji, fallback)
-        
+
         return text
