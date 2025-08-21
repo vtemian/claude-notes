@@ -127,8 +127,8 @@ def order_messages(messages: list, message_order: str) -> list:
 @click.argument("path", type=click.Path(exists=True, path_type=Path), default=".")
 @click.option("--raw", is_flag=True, help="Show raw JSON data instead of formatted view")
 @click.option("--no-pager", is_flag=True, help="Disable pager and show all content at once")
-@click.option("--format", type=click.Choice(["terminal", "html"]), default="terminal", help="Output format")
-@click.option("--output", type=click.Path(), help="Output file for HTML format")
+@click.option("--format", type=click.Choice(["terminal", "html", "animated"]), default="terminal", help="Output format")
+@click.option("--output", type=click.Path(), help="Output file (HTML/GIF/MP4/cast format)")
 @click.option(
     "--session-order",
     type=click.Choice(["asc", "desc"]),
@@ -142,6 +142,20 @@ def order_messages(messages: list, message_order: str) -> list:
     help="Order messages within sessions (asc=oldest first, desc=newest first)",
 )
 @click.option("--style", type=click.Path(exists=True), help="Custom CSS file to include with HTML format")
+@click.option(
+    "--typing-speed", type=float, default=0.05, help="Typing speed in seconds per character (animated format)"
+)
+@click.option(
+    "--pause-duration", type=float, default=2.0, help="Pause duration between messages in seconds (animated format)"
+)
+@click.option("--cols", type=int, default=120, help="Terminal columns (animated format)")
+@click.option("--rows", type=int, default=30, help="Terminal rows (animated format)")
+@click.option("--max-duration", type=float, help="Maximum animation duration in seconds (animated format)")
+@click.option(
+    "--emoji-fallbacks",
+    is_flag=True,
+    help="Replace emoji with text fallbacks for better GIF compatibility (animated format)",
+)
 def show(
     path: Path,
     raw: bool,
@@ -151,6 +165,12 @@ def show(
     session_order: str,
     message_order: str,
     style: str | None,
+    typing_speed: float,
+    pause_duration: float,
+    cols: int,
+    rows: int,
+    max_duration: float | None,
+    emoji_fallbacks: bool,
 ):
     """Show all conversations for a Claude project.
 
@@ -276,6 +296,86 @@ def show(
         else:
             # Print to stdout
             print(html_output)
+    elif format == "animated":
+        # Generate animated GIF
+        from claude_notes.formatters.factory import FormatterFactory
+
+        # Create animated formatter with options
+        formatter_kwargs = {
+            "typing_speed": typing_speed,
+            "pause_duration": pause_duration,
+            "cols": cols,
+            "rows": rows,
+            "max_duration": max_duration,
+            "use_emoji_fallbacks": emoji_fallbacks,
+        }
+
+        try:
+            formatter = FormatterFactory.create_formatter("animated", **formatter_kwargs)
+        except (ImportError, RuntimeError) as e:
+            console.print(f"[red]Error:[/red] {e}")
+            console.print("[dim]Hint: Install animation dependencies with: uv add --optional-deps animation[/dim]")
+            return
+
+        # Collect all conversations into a single asciicast
+        all_messages = []
+        for conv in conversations:
+            # Order the messages based on user preference
+            ordered_messages = order_messages(conv["messages"], message_order)
+            all_messages.extend(ordered_messages)
+
+            # Add separator between conversations if multiple
+            if len(conversations) > 1:
+                separator_msg = {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": f"\n--- Conversation {conversations.index(conv) + 1} ---\n",
+                    },
+                }
+                all_messages.append(separator_msg)
+
+        # Generate asciicast
+        try:
+            cast_file = formatter.format_conversation(all_messages, conversation_info={})
+
+            # Handle output options
+            if output:
+                output_path = Path(output)
+                base_name = output_path.stem
+                output_dir = output_path.parent
+
+                # Always save the cast file alongside the output
+                cast_output = output_dir / f"{base_name}.cast"
+                import shutil
+
+                shutil.copy2(cast_file, cast_output)
+                console.print(f"[cyan]Asciicast file saved: {cast_output}[/cyan]")
+
+                # Generate output based on file extension
+                if output.endswith(".gif") or not output_path.suffix:
+                    gif_output = str(output_path.with_suffix(".gif"))
+                    formatter.generate_gif(cast_file, gif_output)
+                    console.print(f"[green]Animated GIF generated: {gif_output}[/green]")
+                elif output.endswith(".mp4"):
+                    mp4_output = str(output_path.with_suffix(".mp4"))
+                    formatter.generate_mp4(cast_file, mp4_output)
+                    console.print(f"[green]MP4 video generated: {mp4_output}[/green]")
+                elif output.endswith(".cast"):
+                    # User specifically requested just the cast file
+                    console.print(f"[green]Asciicast file saved: {cast_output}[/green]")
+                else:
+                    # Unknown extension, assume they want GIF
+                    gif_output = str(output_path.with_suffix(".gif"))
+                    formatter.generate_gif(cast_file, gif_output)
+                    console.print(f"[green]Animated GIF generated: {gif_output}[/green]")
+            else:
+                console.print(f"[yellow]Asciicast file generated: {cast_file}[/yellow]")
+                console.print("[dim]Use --output filename.cast/.gif/.mp4 to save in desired format[/dim]")
+
+        except Exception as e:
+            console.print(f"[red]Error generating animation: {e}[/red]")
+
     else:
         # Display formatted conversations in terminal
         from claude_notes.formatters.terminal import TerminalFormatter

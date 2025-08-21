@@ -3,6 +3,15 @@ revision = 2
 requires-python = ">=3.11"
 
 [[package]]
+name = "asciinema"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/19/45b405438e90ad5b9618f3df62e9b3edaa2b115b530e60bd4b363465c704/asciinema-2.4.0.tar.gz", hash = "sha256:828e04c36ba622a7b8f8f912c8f0c1329538b6c7ed1c0d1b131bbbfe3a221707", size = 88768, upload-time = "2023-10-23T15:46:22.08Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/55/72/d79812aa210d411f7659fde4bbb1d5ef0e80950ff70f98bfdc57e12787dc/asciinema-2.4.0-py3-none-any.whl", hash = "sha256:249ccf108509d643ddaf38979dac48c99e9e251f597173d8553a30d7a6423104", size = 97332, upload-time = "2023-10-23T15:46:19.691Z" },
+]
+
+[[package]]
 name = "claude-notes"
 version = "0.1.1"
 source = { editable = "." }
@@ -12,6 +21,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+animation = [
+    { name = "asciinema" },
+]
 dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -20,13 +32,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "asciinema", marker = "extra == 'animation'", specifier = ">=2.3.0" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["animation", "dev"]
 
 [[package]]
 name = "click"
