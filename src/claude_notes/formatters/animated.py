@@ -12,7 +12,6 @@ from typing import Any
 from claude_notes.formatters.base import BaseFormatter
 from claude_notes.formatters.tools import format_tool_use
 
-
 # Emoji fallback mappings for GIF export (since emoji don't render well in many terminal fonts)
 EMOJI_FALLBACKS = {
     "🤖": "[Bot]",
