@@ -1,14 +1,19 @@
 """Pager implementation for progressive content display like 'less' CLI."""
 
 import sys
-import termios
-import tty
 from typing import Any
 
 from rich.console import Console
 from rich.text import Text
 
 from claude_notes.formatters.terminal import TerminalFormatter
+
+# Handle Windows vs Unix terminal input
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import termios
+    import tty
 
 
 class Pager:
@@ -177,51 +182,100 @@ class Pager:
 
     def _get_user_input(self) -> str:
         """Get user input for pager controls."""
-        try:
-            # Save terminal settings
-            fd = sys.stdin.fileno()
-            old_settings = termios.tcgetattr(fd)
-
-            # Set terminal to raw mode for single character input
-            tty.setraw(sys.stdin.fileno())
-
-            # Read single character
-            ch = sys.stdin.read(1)
-
-            # Restore terminal settings
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-            # Handle different key presses
-            if ch == "\n" or ch == "\r" or ch == " ":  # Enter or Space
-                return "next_page"
-            elif ch.lower() == "q":
-                return "quit"
-            elif ch.lower() == "j":  # j for next line
-                return "next_line"
-            elif ch.lower() == "k":  # k for previous line
-                return "prev_line"
-            elif ch.lower() == "b":  # Back one page
-                return "prev_page"
-            elif ch.lower() == "g":  # Go to top
-                return "top"
-            elif ch.lower() == "G":  # Go to bottom
-                return "bottom"
-            elif ch.lower() == "h":  # Help
-                self._show_help()
-                return "help"
-            else:
-                # Default to next page for any other key
-                return "next_page"
-
-        except (termios.error, OSError):
-            # Fallback for environments that don't support raw input
+        if sys.platform == "win32":
+            # Windows implementation using msvcrt
             try:
-                line = input()
-                if line.lower().startswith("q"):
+                # Read single character without echo
+                ch = msvcrt.getch()
+
+                # msvcrt.getch() returns bytes, decode to string
+                if isinstance(ch, bytes):
+                    try:
+                        ch = ch.decode("utf-8")
+                    except UnicodeDecodeError:
+                        # Handle special keys (arrow keys, etc.)
+                        if ch == b"\xe0":  # Special key prefix
+                            ch2 = msvcrt.getch()
+                            if ch2 == b"H":  # Up arrow
+                                return "prev_line"
+                            elif ch2 == b"P":  # Down arrow
+                                return "next_line"
+                            elif ch2 == b"I":  # Page Up
+                                return "prev_page"
+                            elif ch2 == b"Q":  # Page Down
+                                return "next_page"
+                        return "next_page"
+
+                # Handle different key presses
+                if ch == "\r" or ch == " ":  # Enter or Space
+                    return "next_page"
+                elif ch.lower() == "q":
                     return "quit"
-                return "next_page"
-            except (EOFError, KeyboardInterrupt):
+                elif ch.lower() == "j":  # j for next line
+                    return "next_line"
+                elif ch.lower() == "k":  # k for previous line
+                    return "prev_line"
+                elif ch.lower() == "b":  # Back one page
+                    return "prev_page"
+                elif ch.lower() == "g":  # Go to top
+                    return "top"
+                elif ch == "G":  # Go to bottom (capital G)
+                    return "bottom"
+                elif ch.lower() == "h":  # Help
+                    self._show_help()
+                    return "help"
+                else:
+                    # Default to next page for any other key
+                    return "next_page"
+            except (OSError, KeyboardInterrupt):
                 return "quit"
+        else:
+            # Unix implementation using termios
+            try:
+                # Save terminal settings
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+
+                # Set terminal to raw mode for single character input
+                tty.setraw(sys.stdin.fileno())
+
+                # Read single character
+                ch = sys.stdin.read(1)
+
+                # Restore terminal settings
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+                # Handle different key presses
+                if ch == "\n" or ch == "\r" or ch == " ":  # Enter or Space
+                    return "next_page"
+                elif ch.lower() == "q":
+                    return "quit"
+                elif ch.lower() == "j":  # j for next line
+                    return "next_line"
+                elif ch.lower() == "k":  # k for previous line
+                    return "prev_line"
+                elif ch.lower() == "b":  # Back one page
+                    return "prev_page"
+                elif ch.lower() == "g":  # Go to top
+                    return "top"
+                elif ch.lower() == "G":  # Go to bottom
+                    return "bottom"
+                elif ch.lower() == "h":  # Help
+                    self._show_help()
+                    return "help"
+                else:
+                    # Default to next page for any other key
+                    return "next_page"
+
+            except (termios.error, OSError):
+                # Fallback for environments that don't support raw input
+                try:
+                    line = input()
+                    if line.lower().startswith("q"):
+                        return "quit"
+                    return "next_page"
+                except (EOFError, KeyboardInterrupt):
+                    return "quit"
 
     def _show_help(self) -> None:
         """Show help message."""

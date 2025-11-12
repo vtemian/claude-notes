@@ -20,11 +20,21 @@ def get_claude_projects_dir() -> Path:
 
 def decode_project_path(encoded_name: str) -> str:
     """Decode the project folder name to actual path."""
+    # Check if it's a Windows path (starts with drive letter + --)
+    # Example: "c--Users-Jack-project" or "C--Users-Jack-project"
+    if len(encoded_name) >= 2 and encoded_name[1:3] == "--":
+        # Windows path
+        drive = encoded_name[0].upper()
+        rest = encoded_name[3:].replace("-", "\\")
+        return f"{drive}:\\{rest}"
+
+    # Unix/Linux path (starts with -)
     # Remove leading dash and replace dashes with slashes
     if encoded_name.startswith("-"):
         encoded_name = encoded_name[1:]
 
-    return "/" + encoded_name.replace("-", "/")
+    decoded = encoded_name.replace("-", "/")
+    return "/" + decoded
 
 
 def list_projects() -> list[tuple[str, Path, int]]:
@@ -37,9 +47,18 @@ def list_projects() -> list[tuple[str, Path, int]]:
     projects = []
 
     for project_folder in projects_dir.iterdir():
-        if project_folder.is_dir() and project_folder.name.startswith("-"):
+        if not project_folder.is_dir():
+            continue
+
+        # Check if it's a valid project folder
+        # Unix/Linux: starts with "-" (e.g., "-home-user-project")
+        # Windows: starts with drive letter (e.g., "c--Users-Jack-project" or "C--Users-Jack-project")
+        name = project_folder.name
+        is_valid = name.startswith("-") or (len(name) >= 2 and name[1:3] == "--")
+
+        if is_valid:
             # Decode the project path
-            actual_path = decode_project_path(project_folder.name)
+            actual_path = decode_project_path(name)
 
             # Count JSONL files (transcripts)
             jsonl_files = list(project_folder.glob("*.jsonl"))
@@ -84,10 +103,23 @@ def list_projects_cmd():
 
 def encode_project_path(path: str) -> str:
     """Encode a project path to Claude folder name format."""
+    # Normalize path separators to forward slashes
+    normalized = path.replace("\\", "/")
+
+    # Check if it's a Windows path with drive letter (C:/ or C:\)
+    if len(normalized) >= 2 and normalized[1] == ":":
+        # Format: C:/Users/... -> C--Users-...
+        # Keep the drive letter case as-is (Claude might use uppercase or lowercase)
+        drive = normalized[0]
+        rest = normalized[3:] if len(normalized) > 2 and normalized[2] == "/" else normalized[2:]
+        return drive + "--" + rest.replace("/", "-")
+
+    # Unix/Linux path: /home/user/... -> -home-user-...
     # Remove leading slash and replace slashes with dashes
-    if path.startswith("/"):
-        path = path[1:]
-    return "-" + path.replace("/", "-")
+    if normalized.startswith("/"):
+        normalized = normalized[1:]
+
+    return "-" + normalized.replace("/", "-")
 
 
 def find_project_folder(project_path: Path) -> Path | None:
@@ -96,8 +128,19 @@ def find_project_folder(project_path: Path) -> Path | None:
     encoded_name = encode_project_path(str(project_path))
     project_folder = projects_dir / encoded_name
 
+    # Try exact match first
     if project_folder.exists() and project_folder.is_dir():
         return project_folder
+
+    # On Windows, try case-insensitive match (drive letter might be uppercase or lowercase)
+    if not projects_dir.exists():
+        return None
+
+    encoded_lower = encoded_name.lower()
+    for folder in projects_dir.iterdir():
+        if folder.is_dir() and folder.name.lower() == encoded_lower:
+            return folder
+
     return None
 
 
@@ -263,9 +306,9 @@ def show(
             html_parts.append("<h2>Conversations</h2>")
             html_parts.append('<ul class="conversation-toc">')
             for i, conv in enumerate(conversations):
-                conv_id = conv["info"].get("conversation_id", f"conv-{i+1}")
+                conv_id = conv["info"].get("conversation_id", f"conv-{i + 1}")
                 start_time = conv["info"].get("start_time", "Unknown time")
-                html_parts.append(f'<li><a href="#conv-{conv_id}">📝 Conversation {i+1} ({start_time})</a></li>')
+                html_parts.append(f'<li><a href="#conv-{conv_id}">📝 Conversation {i + 1} ({start_time})</a></li>')
             html_parts.append("</ul>")
             html_parts.append("</div>")
 
