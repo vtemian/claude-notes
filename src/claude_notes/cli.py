@@ -179,16 +179,21 @@ def show(
     # Convert to absolute path
     abs_path = path.resolve()
 
-    # Find the project folder
-    project_folder = find_project_folder(abs_path)
+    # Check if the path is a direct .jsonl file
+    if abs_path.is_file() and abs_path.suffix == ".jsonl":
+        # Use the file directly
+        jsonl_files = [abs_path]
+    else:
+        # Find the project folder
+        project_folder = find_project_folder(abs_path)
 
-    if not project_folder:
-        console.print(f"[red]Error:[/red] No Claude project found for path: {abs_path}")
-        console.print("\n[dim]Hint: Use 'claude-notes list-projects' to see all available projects[/dim]")
-        return
+        if not project_folder:
+            console.print(f"[red]Error:[/red] No Claude project found for path: {abs_path}")
+            console.print("\n[dim]Hint: Use 'claude-notes list-projects' to see all available projects[/dim]")
+            return
 
-    # List all JSONL files
-    jsonl_files = sorted(project_folder.glob("*.jsonl"))
+        # List all JSONL files
+        jsonl_files = sorted(project_folder.glob("*.jsonl"))
 
     if not jsonl_files:
         console.print(f"[yellow]No transcript files found in project: {abs_path}[/yellow]")
@@ -263,9 +268,9 @@ def show(
             html_parts.append("<h2>Conversations</h2>")
             html_parts.append('<ul class="conversation-toc">')
             for i, conv in enumerate(conversations):
-                conv_id = conv["info"].get("conversation_id", f"conv-{i+1}")
+                conv_id = conv["info"].get("conversation_id", f"conv-{i + 1}")
                 start_time = conv["info"].get("start_time", "Unknown time")
-                html_parts.append(f'<li><a href="#conv-{conv_id}">📝 Conversation {i+1} ({start_time})</a></li>')
+                html_parts.append(f'<li><a href="#conv-{conv_id}">📝 Conversation {i + 1} ({start_time})</a></li>')
             html_parts.append("</ul>")
             html_parts.append("</div>")
 
