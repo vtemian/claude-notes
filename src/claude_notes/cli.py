@@ -18,13 +18,47 @@ def get_claude_projects_dir() -> Path:
     return Path.home() / ".claude" / "projects"
 
 
+def _decode_segments(encoded: str, separator: str) -> str:
+    """Decode dash-separated segments, where '--' represents a literal dash."""
+    decoded_parts: list[str] = []
+    i = 0
+    while i < len(encoded):
+        char = encoded[i]
+        if char == "-":
+            if i + 1 < len(encoded) and encoded[i + 1] == "-":
+                decoded_parts.append("-")
+                i += 2
+            else:
+                decoded_parts.append(separator)
+                i += 1
+        else:
+            decoded_parts.append(char)
+            i += 1
+    return "".join(decoded_parts)
+
+
+def _encode_segments(path: str) -> str:
+    """Encode path segments by escaping literal dashes."""
+    return path.replace("-", "--").replace("/", "-")
+
+
 def decode_project_path(encoded_name: str) -> str:
     """Decode the project folder name to actual path."""
-    # Remove leading dash and replace dashes with slashes
-    if encoded_name.startswith("-"):
-        encoded_name = encoded_name[1:]
+    # Windows path (e.g., "C--Users-projects-my--project")
+    if len(encoded_name) >= 3 and encoded_name[1:3] == "--" and encoded_name[0].isalpha():
+        drive = encoded_name[0]
+        rest_encoded = encoded_name[3:]
+        rest = _decode_segments(rest_encoded, "/")
+        return f"{drive}:/{rest}" if rest else f"{drive}:/"
 
-    return "/" + encoded_name.replace("-", "/")
+    # Unix/Linux path (e.g., "-home-user-my--project")
+    if encoded_name.startswith("-"):
+        encoded_body = encoded_name[1:]
+        decoded_body = _decode_segments(encoded_body, "/")
+        return "/" + decoded_body
+
+    # Fallback: return as-is if it doesn't match expected encodings
+    return encoded_name
 
 
 def list_projects() -> list[tuple[str, Path, int]]:
@@ -37,9 +71,18 @@ def list_projects() -> list[tuple[str, Path, int]]:
     projects = []
 
     for project_folder in projects_dir.iterdir():
-        if project_folder.is_dir() and project_folder.name.startswith("-"):
+        if not project_folder.is_dir():
+            continue
+
+        # Check if it's a valid project folder
+        # Unix/Linux: starts with "-" (e.g., "-home-user-project")
+        # Windows: starts with drive letter (e.g., "c--Users-Jack-project" or "C--Users-Jack-project")
+        name = project_folder.name
+        is_valid = name.startswith("-") or (len(name) >= 3 and name[1:3] == "--" and name[0].isalpha())
+
+        if is_valid:
             # Decode the project path
-            actual_path = decode_project_path(project_folder.name)
+            actual_path = decode_project_path(name)
 
             # Count JSONL files (transcripts)
             jsonl_files = list(project_folder.glob("*.jsonl"))
@@ -84,10 +127,21 @@ def list_projects_cmd():
 
 def encode_project_path(path: str) -> str:
     """Encode a project path to Claude folder name format."""
-    # Remove leading slash and replace slashes with dashes
-    if path.startswith("/"):
-        path = path[1:]
-    return "-" + path.replace("/", "-")
+    normalized = path.replace("\\", "/")
+
+    # Windows path with drive letter (e.g., C:/Users/...)
+    if len(normalized) >= 2 and normalized[1] == ":" and normalized[0].isalpha():
+        drive = normalized[0]
+        rest = normalized[2:]
+        if rest.startswith("/"):
+            rest = rest[1:]
+        encoded_rest = _encode_segments(rest)
+        return f"{drive}--{encoded_rest}"
+
+    # Unix/Linux path (leading slash)
+    normalized = normalized.lstrip("/")
+    encoded_body = _encode_segments(normalized)
+    return "-" + encoded_body
 
 
 def find_project_folder(project_path: Path) -> Path | None:
@@ -96,8 +150,19 @@ def find_project_folder(project_path: Path) -> Path | None:
     encoded_name = encode_project_path(str(project_path))
     project_folder = projects_dir / encoded_name
 
+    # Try exact match first
     if project_folder.exists() and project_folder.is_dir():
         return project_folder
+
+    # On Windows, try case-insensitive match (drive letter might be uppercase or lowercase)
+    if not projects_dir.exists():
+        return None
+
+    encoded_lower = encoded_name.lower()
+    for folder in projects_dir.iterdir():
+        if folder.is_dir() and folder.name.lower() == encoded_lower:
+            return folder
+
     return None
 
 
