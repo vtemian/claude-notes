@@ -18,23 +18,47 @@ def get_claude_projects_dir() -> Path:
     return Path.home() / ".claude" / "projects"
 
 
+def _decode_segments(encoded: str, separator: str) -> str:
+    """Decode dash-separated segments, where '--' represents a literal dash."""
+    decoded_parts: list[str] = []
+    i = 0
+    while i < len(encoded):
+        char = encoded[i]
+        if char == "-":
+            if i + 1 < len(encoded) and encoded[i + 1] == "-":
+                decoded_parts.append("-")
+                i += 2
+            else:
+                decoded_parts.append(separator)
+                i += 1
+        else:
+            decoded_parts.append(char)
+            i += 1
+    return "".join(decoded_parts)
+
+
+def _encode_segments(path: str) -> str:
+    """Encode path segments by escaping literal dashes."""
+    return path.replace("-", "--").replace("/", "-")
+
+
 def decode_project_path(encoded_name: str) -> str:
     """Decode the project folder name to actual path."""
-    # Check if it's a Windows path (starts with drive letter + --)
-    # Example: "c--Users-Jack-project" or "C--Users-Jack-project"
-    if len(encoded_name) >= 2 and encoded_name[1:3] == "--":
-        # Windows path
-        drive = encoded_name[0].upper()
-        rest = encoded_name[3:].replace("-", "\\")
-        return f"{drive}:\\{rest}"
+    # Windows path (e.g., "C--Users-projects-my--project")
+    if len(encoded_name) >= 3 and encoded_name[1:3] == "--" and encoded_name[0].isalpha():
+        drive = encoded_name[0]
+        rest_encoded = encoded_name[3:]
+        rest = _decode_segments(rest_encoded, "/")
+        return f"{drive}:/{rest}" if rest else f"{drive}:/"
 
-    # Unix/Linux path (starts with -)
-    # Remove leading dash and replace dashes with slashes
+    # Unix/Linux path (e.g., "-home-user-my--project")
     if encoded_name.startswith("-"):
-        encoded_name = encoded_name[1:]
+        encoded_body = encoded_name[1:]
+        decoded_body = _decode_segments(encoded_body, "/")
+        return "/" + decoded_body
 
-    decoded = encoded_name.replace("-", "/")
-    return "/" + decoded
+    # Fallback: return as-is if it doesn't match expected encodings
+    return encoded_name
 
 
 def list_projects() -> list[tuple[str, Path, int]]:
@@ -54,7 +78,7 @@ def list_projects() -> list[tuple[str, Path, int]]:
         # Unix/Linux: starts with "-" (e.g., "-home-user-project")
         # Windows: starts with drive letter (e.g., "c--Users-Jack-project" or "C--Users-Jack-project")
         name = project_folder.name
-        is_valid = name.startswith("-") or (len(name) >= 2 and name[1:3] == "--")
+        is_valid = name.startswith("-") or (len(name) >= 3 and name[1:3] == "--" and name[0].isalpha())
 
         if is_valid:
             # Decode the project path
@@ -103,23 +127,21 @@ def list_projects_cmd():
 
 def encode_project_path(path: str) -> str:
     """Encode a project path to Claude folder name format."""
-    # Normalize path separators to forward slashes
     normalized = path.replace("\\", "/")
 
-    # Check if it's a Windows path with drive letter (C:/ or C:\)
-    if len(normalized) >= 2 and normalized[1] == ":":
-        # Format: C:/Users/... -> C--Users-...
-        # Keep the drive letter case as-is (Claude might use uppercase or lowercase)
+    # Windows path with drive letter (e.g., C:/Users/...)
+    if len(normalized) >= 2 and normalized[1] == ":" and normalized[0].isalpha():
         drive = normalized[0]
-        rest = normalized[3:] if len(normalized) > 2 and normalized[2] == "/" else normalized[2:]
-        return drive + "--" + rest.replace("/", "-")
+        rest = normalized[2:]
+        if rest.startswith("/"):
+            rest = rest[1:]
+        encoded_rest = _encode_segments(rest)
+        return f"{drive}--{encoded_rest}"
 
-    # Unix/Linux path: /home/user/... -> -home-user-...
-    # Remove leading slash and replace slashes with dashes
-    if normalized.startswith("/"):
-        normalized = normalized[1:]
-
-    return "-" + normalized.replace("/", "-")
+    # Unix/Linux path (leading slash)
+    normalized = normalized.lstrip("/")
+    encoded_body = _encode_segments(normalized)
+    return "-" + encoded_body
 
 
 def find_project_folder(project_path: Path) -> Path | None:

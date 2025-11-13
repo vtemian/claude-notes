@@ -209,19 +209,19 @@ class Pager:
                 # Handle different key presses
                 if ch == "\r" or ch == " ":  # Enter or Space
                     return "next_page"
-                elif ch.lower() == "q":
+                elif ch == "q":
                     return "quit"
-                elif ch.lower() == "j":  # j for next line
+                elif ch == "j":  # j for next line
                     return "next_line"
-                elif ch.lower() == "k":  # k for previous line
+                elif ch == "k":  # k for previous line
                     return "prev_line"
-                elif ch.lower() == "b":  # Back one page
+                elif ch == "b":  # Back one page
                     return "prev_page"
-                elif ch.lower() == "g":  # Go to top
+                elif ch == "g":  # Go to top
                     return "top"
                 elif ch == "G":  # Go to bottom (capital G)
                     return "bottom"
-                elif ch.lower() == "h":  # Help
+                elif ch == "h":  # Help
                     self._show_help()
                     return "help"
                 else:
@@ -248,19 +248,19 @@ class Pager:
                 # Handle different key presses
                 if ch == "\n" or ch == "\r" or ch == " ":  # Enter or Space
                     return "next_page"
-                elif ch.lower() == "q":
+                elif ch == "q":
                     return "quit"
-                elif ch.lower() == "j":  # j for next line
+                elif ch == "j":  # j for next line
                     return "next_line"
-                elif ch.lower() == "k":  # k for previous line
+                elif ch == "k":  # k for previous line
                     return "prev_line"
-                elif ch.lower() == "b":  # Back one page
+                elif ch == "b":  # Back one page
                     return "prev_page"
-                elif ch.lower() == "g":  # Go to top
+                elif ch == "g":  # Go to top
                     return "top"
-                elif ch.lower() == "G":  # Go to bottom
+                elif ch == "G":  # Go to bottom
                     return "bottom"
-                elif ch.lower() == "h":  # Help
+                elif ch == "h":  # Help
                     self._show_help()
                     return "help"
                 else:
