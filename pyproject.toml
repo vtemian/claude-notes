@@ -28,10 +28,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/claude-notes"
-Repository = "https://github.com/yourusername/claude-notes"
-Issues = "https://github.com/yourusername/claude-notes/issues"
-Documentation = "https://github.com/yourusername/claude-notes#readme"
+Homepage = "https://github.com/vtemian/claude-notes"
+Repository = "https://github.com/vtemian/claude-notes"
+Issues = "https://github.com/vtemian/claude-notes/issues"
+Documentation = "https://github.com/vtemian/claude-notes#readme"
 
 [project.scripts]
 claude-notes = "claude_notes.__main__:main"

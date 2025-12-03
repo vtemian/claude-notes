@@ -179,8 +179,8 @@ Documentation improvements are always welcome:
 
 ## Getting Help
 
-- **Questions**: Open a [GitHub Discussion](https://github.com/yourusername/claude-notes/discussions)
-- **Bugs**: Create a [GitHub Issue](https://github.com/yourusername/claude-notes/issues)
+- **Questions**: Open a [GitHub Discussion](https://github.com/vtemian/claude-notes/discussions)
+- **Bugs**: Create a [GitHub Issue](https://github.com/vtemian/claude-notes/issues)
 - **Chat**: Join discussions in existing issues
 
 ## Code of Conduct
