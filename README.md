@@ -100,5 +100,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-- Report issues: [GitHub Issues](https://github.com/yourusername/claude-notes/issues)
-- Feature requests: [GitHub Discussions](https://github.com/yourusername/claude-notes/discussions)
+- Report issues: [GitHub Issues](https://github.com/vtemian/claude-notes/issues)
+- Feature requests: [GitHub Discussions](https://github.com/vtemian/claude-notes/discussions)
