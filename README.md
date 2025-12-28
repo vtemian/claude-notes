@@ -18,6 +18,13 @@ uvx claude-notes show --format html --output conversations.html
 
 https://github.com/user-attachments/assets/e4cb9404-bdee-4a12-8e06-e1e2216b9165
 
+## Examples
+
+See rendered HTML output examples:
+
+- [Conversation Export](https://htmlpreview.github.io/?https://github.com/vtemian/claude-notes/blob/main/examples/conversations.html) - Full conversation with tool usage, code blocks, and timestamps
+
+The `examples/` directory also contains a [dark theme CSS](examples/example-dark-style.css) you can use to customize the HTML output.
 
 ## Features
 
@@ -60,14 +67,6 @@ uvx claude-notes show --no-pager
 # Show raw JSON data
 uvx claude-notes show --raw
 ```
-
-## Examples
-
-See rendered HTML output examples:
-
-- [Conversation Export](https://htmlpreview.github.io/?https://github.com/vtemian/claude-notes/blob/main/examples/conversations.html) - Full conversation with tool usage, code blocks, and timestamps
-
-The `examples/` directory also contains a [dark theme CSS](examples/example-dark-style.css) you can use to customize the HTML output.
 
 ## HTML Features
 
