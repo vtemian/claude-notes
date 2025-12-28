@@ -61,6 +61,14 @@ uvx claude-notes show --no-pager
 uvx claude-notes show --raw
 ```
 
+## Examples
+
+See rendered HTML output examples:
+
+- [Conversation Export](https://htmlpreview.github.io/?https://github.com/vtemian/claude-notes/blob/main/examples/conversations.html) - Full conversation with tool usage, code blocks, and timestamps
+
+The `examples/` directory also contains a [dark theme CSS](examples/example-dark-style.css) you can use to customize the HTML output.
+
 ## HTML Features
 
 The HTML output includes:
