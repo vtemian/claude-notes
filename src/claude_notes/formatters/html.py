@@ -353,6 +353,9 @@ class HTMLFormatter(BaseFormatter):
             flags=re.DOTALL,
         )
 
+        # Tables - convert markdown tables to HTML
+        content = self._convert_tables(content)
+
         # Bold **text**
         content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", content)
 
@@ -367,10 +370,10 @@ class HTMLFormatter(BaseFormatter):
         content = re.sub(r"^## (.*?)$", r"<h3>\1</h3>", content, flags=re.MULTILINE)
         content = re.sub(r"^# (.*?)$", r"<h2>\1</h2>", content, flags=re.MULTILINE)
 
-        # Numbered lists
-        content = re.sub(r"^(\d+)\. (.*?)$", r"<li>\2</li>", content, flags=re.MULTILINE)
+        # Convert lists properly
+        content = self._convert_lists(content)
 
-        # Line breaks (but not inside code blocks)
+        # Line breaks (but not inside code blocks, tables, or lists)
         lines = content.split("\n")
         result = []
         in_code = False
@@ -388,6 +391,112 @@ class HTMLFormatter(BaseFormatter):
         content = "\n".join(result)
 
         return content
+
+    def _convert_lists(self, content: str) -> str:
+        """Convert markdown lists to HTML lists."""
+        lines = content.split("\n")
+        result = []
+        list_items = []
+        list_type = None  # 'ul' or 'ol'
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Check for unordered list item (- or *)
+            ul_match = re.match(r"^[-*]\s+(.+)$", stripped)
+            # Check for ordered list item (1. 2. etc)
+            ol_match = re.match(r"^\d+\.\s+(.+)$", stripped)
+
+            if ul_match:
+                if list_type == "ol" and list_items:
+                    # Close previous ordered list
+                    result.append("<ol>" + "".join(list_items) + "</ol>")
+                    list_items = []
+                list_type = "ul"
+                list_items.append(f"<li>{ul_match.group(1)}</li>")
+            elif ol_match:
+                if list_type == "ul" and list_items:
+                    # Close previous unordered list
+                    result.append("<ul>" + "".join(list_items) + "</ul>")
+                    list_items = []
+                list_type = "ol"
+                list_items.append(f"<li>{ol_match.group(1)}</li>")
+            else:
+                # Not a list item - close any open list
+                if list_items:
+                    tag = list_type or "ul"
+                    result.append(f"<{tag}>" + "".join(list_items) + f"</{tag}>")
+                    list_items = []
+                    list_type = None
+                result.append(line)
+
+        # Close any remaining list
+        if list_items:
+            tag = list_type or "ul"
+            result.append(f"<{tag}>" + "".join(list_items) + f"</{tag}>")
+
+        return "\n".join(result)
+
+    def _convert_tables(self, content: str) -> str:
+        """Convert markdown tables to HTML tables."""
+        lines = content.split("\n")
+        result = []
+        table_lines = []
+        in_table = False
+
+        for line in lines:
+            # Check if line looks like a table row (starts and ends with |)
+            stripped = line.strip()
+            is_table_row = stripped.startswith("|") and stripped.endswith("|")
+
+            if is_table_row:
+                if not in_table:
+                    in_table = True
+                table_lines.append(stripped)
+            else:
+                if in_table:
+                    # End of table, convert it
+                    result.append(self._table_to_html(table_lines))
+                    table_lines = []
+                    in_table = False
+                result.append(line)
+
+        # Handle table at end of content
+        if in_table and table_lines:
+            result.append(self._table_to_html(table_lines))
+
+        return "\n".join(result)
+
+    def _table_to_html(self, table_lines: list[str]) -> str:
+        """Convert table lines to HTML table."""
+        if len(table_lines) < 2:
+            return "\n".join(table_lines)
+
+        html_parts = ['<table class="md-table">']
+
+        for i, line in enumerate(table_lines):
+            # Skip separator line (contains only -, |, :, and spaces)
+            if re.match(r"^\|[\s\-:|]+\|$", line):
+                continue
+
+            # Parse cells
+            cells = [cell.strip() for cell in line.split("|")[1:-1]]
+
+            if i == 0:
+                # Header row
+                html_parts.append("<thead><tr>")
+                for cell in cells:
+                    html_parts.append(f"<th>{cell}</th>")
+                html_parts.append("</tr></thead><tbody>")
+            else:
+                # Body row
+                html_parts.append("<tr>")
+                for cell in cells:
+                    html_parts.append(f"<td>{cell}</td>")
+                html_parts.append("</tr>")
+
+        html_parts.append("</tbody></table>")
+        return "".join(html_parts)
 
     def _parse_special_tags_html(self, content: str) -> str:
         """Parse special tags in content for HTML."""
@@ -1087,8 +1196,6 @@ body::before {
 
 .text-block code {
     background: var(--bg-elevated);
-    border: 1px solid var(--border-muted);
-    padding: 2px 8px;
     font-size: 0.9em;
 }
 
@@ -1096,9 +1203,42 @@ body::before {
     font-weight: 600;
 }
 
+.text-block ul,
+.text-block ol {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
 .text-block li {
-    margin-left: 24px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+/* Markdown tables */
+.md-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.85rem;
+}
+
+.md-table th,
+.md-table td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.md-table th {
+    background: var(--bg-elevated);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.md-table tr:hover {
+    background: var(--bg-subtle);
 }
 
 .code-block {
@@ -1108,6 +1248,7 @@ body::before {
     overflow-x: auto;
     margin: 8px 0;
     font-size: 0.8rem;
+    font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", "Source Code Pro", ui-monospace, monospace;
 }
 
 /* Thinking block */
@@ -1206,6 +1347,7 @@ body::before {
     font-size: 0.75rem;
     max-height: 300px;
     overflow: auto;
+    font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", "Source Code Pro", ui-monospace, monospace;
 }
 
 .search-result {
@@ -1265,6 +1407,7 @@ body::before {
     max-height: 300px;
     overflow: auto;
     color: var(--fg-muted);
+    font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", "Source Code Pro", ui-monospace, monospace;
 }
 
 /* Line count - right-aligned */
@@ -1331,7 +1474,7 @@ body::before {
 .diff-content {
     padding: 8px 0;
     font-size: 0.75rem;
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", "Source Code Pro", ui-monospace, monospace;
 }
 
 .diff-line {
