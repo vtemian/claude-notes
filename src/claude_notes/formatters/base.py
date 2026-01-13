@@ -126,18 +126,30 @@ class BaseFormatter(ABC):
             if msg.get("type") == "tool_result":
                 continue
 
-            # Also skip user messages that are just tool results - they appear inline now
-            if msg.get("type") == "user":
-                message_data = msg.get("message", {})
-                if isinstance(message_data, dict):
-                    content = message_data.get("content", "")
-                    if isinstance(content, str) and content.strip().startswith("Tool Result:"):
-                        continue
-
-            # Extract the actual message from the structure
-            if "message" in msg and isinstance(msg["message"], dict):
-                message_data = msg["message"]
+            # Skip user messages that are just tool results - they appear inline now
+            message_data = msg.get("message", {})
+            if isinstance(message_data, dict):
                 role = message_data.get("role")
+                content = message_data.get("content", "")
+
+                # Skip user messages that only contain tool results
+                if role == "user":
+                    is_tool_result_only = False
+
+                    # Check string content
+                    if isinstance(content, str) and content.strip().startswith("Tool Result:"):
+                        is_tool_result_only = True
+
+                    # Check list content - skip if all items are tool_result type
+                    elif isinstance(content, list):
+                        tool_result_items = [
+                            item for item in content if isinstance(item, dict) and item.get("type") == "tool_result"
+                        ]
+                        if tool_result_items and len(tool_result_items) == len(content):
+                            is_tool_result_only = True
+
+                    if is_tool_result_only:
+                        continue
 
                 # Skip meta messages or messages without role
                 if msg.get("isMeta") or not role:

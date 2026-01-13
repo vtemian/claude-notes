@@ -203,8 +203,8 @@ def order_messages(messages: list, message_order: str) -> list:
 @click.option(
     "--message-order",
     type=click.Choice(["asc", "desc"]),
-    default="desc",
-    help="Order messages within sessions (asc=oldest first, desc=newest first)",
+    default=None,
+    help="Order messages within sessions (asc=oldest first, desc=newest first). Defaults to asc for HTML, desc for terminal.",
 )
 @click.option("--style", type=click.Path(exists=True), help="Custom CSS file to include with HTML format")
 @click.option(
@@ -241,6 +241,10 @@ def show(
 
     If PATH is not specified, uses the current directory.
     """
+    # Set default message order based on format if not explicitly provided
+    if message_order is None:
+        message_order = "asc" if format == "html" else "desc"
+
     # Convert to absolute path
     abs_path = path.resolve()
 

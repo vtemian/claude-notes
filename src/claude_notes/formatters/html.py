@@ -1,4 +1,4 @@
-"""HTML formatter for Claude conversations."""
+"""HTML formatter for Claude conversations - ampcode-inspired design."""
 
 import html
 import re
@@ -12,90 +12,198 @@ from claude_notes.formatters.base import BaseFormatter
 def humanize_date(timestamp_str: str) -> str:
     """Convert ISO timestamp to humanized format."""
     try:
-        # Parse the ISO timestamp
         dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         now = datetime.now(UTC)
-
-        # Calculate time difference
         diff = now - dt
-
-        # Convert to local time for display
-        local_dt = dt.astimezone()
-
-        # Format based on time difference
         total_seconds = diff.total_seconds()
 
         if total_seconds < 60:
             return "just now"
-        elif total_seconds < 3600:  # Less than 1 hour
+        elif total_seconds < 3600:
             minutes = int(total_seconds / 60)
-            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-        elif total_seconds < 86400:  # Less than 1 day
+            return f"{minutes}m ago"
+        elif total_seconds < 86400:
             hours = int(total_seconds / 3600)
-            return f"{hours} hour{'s' if hours != 1 else ''} ago"
-        elif total_seconds < 2592000:  # Less than 30 days
+            return f"{hours}h ago"
+        elif total_seconds < 2592000:
             days = int(total_seconds / 86400)
-            return f"{days} day{'s' if days != 1 else ''} ago"
+            return f"{days}d ago"
         else:
-            # For older dates, show the actual date
-            return local_dt.strftime("%B %d, %Y at %I:%M %p")
+            local_dt = dt.astimezone()
+            return local_dt.strftime("%b %d, %Y")
     except (ValueError, TypeError):
-        # Fallback for unparseable dates
         return timestamp_str
 
 
 class HTMLFormatter(BaseFormatter):
-    """Format Claude conversations for HTML display."""
+    """Format Claude conversations for HTML display - ampcode style."""
 
     def __init__(self):
         """Initialize the formatter."""
         super().__init__()
+        self.stats = {
+            "files_read": set(),
+            "files_edited": set(),
+            "lines_added": 0,
+            "lines_removed": 0,
+            "tool_calls": 0,
+            "searches": 0,
+            "bash_commands": 0,
+        }
 
     def format_conversation(self, messages: list[dict[str, Any]], conversation_info: dict[str, Any]) -> str:
         """Format and return a conversation as HTML."""
+        # Reset stats for this conversation
+        self.stats = {
+            "files_read": set(),
+            "files_edited": set(),
+            "lines_added": 0,
+            "lines_removed": 0,
+            "tool_calls": 0,
+            "searches": 0,
+            "bash_commands": 0,
+        }
+
         # Collect tool results
         self._collect_tool_results(messages)
 
         # Group messages by role continuity
         grouped_messages = self._group_messages(messages)
 
+        # Extract title from first user message
+        title = self._extract_title(grouped_messages)
+
         # Build HTML
         html_parts = []
-        html_parts.append('<div class="conversation">')
-
-        # Add conversation header if available
         conversation_id = conversation_info.get("conversation_id", "unknown")
-        if conversation_id:
-            html_parts.append('<div class="conversation-header">')
-            html_parts.append(f'<h2 id="conv-{conversation_id}">Conversation {conversation_id}</h2>')
-            if conversation_info.get("start_time"):
-                html_parts.append(f'<div class="timestamp">{conversation_info["start_time"]}</div>')
-            html_parts.append("</div>")
 
-        # Display each group with headings and anchors
+        html_parts.append(f'<article class="thread" id="conv-{conversation_id}">')
+
+        # Thread header
+        html_parts.append('<header class="thread-header">')
+        html_parts.append(f'<h1 class="thread-title">{html.escape(title)}</h1>')
+        html_parts.append('<div class="thread-meta">')
+        if conversation_info.get("start_time"):
+            humanized = humanize_date(conversation_info["start_time"])
+            html_parts.append(f'<span class="meta-item">{humanized}</span>')
+        message_count = len(grouped_messages)
+        html_parts.append(f'<span class="meta-item">{message_count} messages</span>')
+        html_parts.append("</div>")
+        html_parts.append("</header>")
+
+        # Main content area
+        html_parts.append('<div class="thread-body">')
+        html_parts.append('<main class="thread-content">')
+
+        # Display each group
         for i, group in enumerate(grouped_messages):
+            if not group:
+                continue
             html_parts.append(self._format_message_group(group, i + 1))
 
-        html_parts.append("</div>")
+        html_parts.append("</main>")
+
+        # Sidebar with stats (will be populated after processing)
+        html_parts.append(self._generate_sidebar(conversation_info))
+
+        html_parts.append("</div>")  # thread-body
+        html_parts.append("</article>")
+
         return "\n".join(html_parts)
+
+    def _extract_title(self, grouped_messages: list[list[dict]]) -> str:
+        """Extract a title from the first user message."""
+        for group in grouped_messages:
+            if not group:
+                continue
+            first_msg = group[0]
+            message_data = first_msg.get("message", {})
+            if message_data.get("role") == "user":
+                content = message_data.get("content", "")
+                if isinstance(content, str):
+                    # Take first line, truncate if needed
+                    first_line = content.split("\n")[0].strip()
+                    if len(first_line) > 80:
+                        return first_line[:77] + "..."
+                    return first_line if first_line else "Conversation"
+                elif isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            text = item.get("text", "").strip()
+                            first_line = text.split("\n")[0].strip()
+                            if len(first_line) > 80:
+                                return first_line[:77] + "..."
+                            return first_line if first_line else "Conversation"
+        return "Conversation"
+
+    def _generate_sidebar(self, conversation_info: dict) -> str:
+        """Generate the sidebar with stats."""
+        parts = []
+        parts.append('<aside class="thread-sidebar">')
+
+        # Thread info section
+        parts.append('<section class="sidebar-section">')
+        parts.append('<h3 class="sidebar-title">Thread</h3>')
+        parts.append('<dl class="sidebar-stats">')
+
+        if conversation_info.get("start_time"):
+            parts.append(f'<dt>Created</dt><dd>{humanize_date(conversation_info["start_time"])}</dd>')
+
+        if conversation_info.get("session_id"):
+            session_short = conversation_info["session_id"][:8]
+            parts.append(f"<dt>Session</dt><dd>{session_short}</dd>")
+
+        parts.append("</dl>")
+        parts.append("</section>")
+
+        # Stats section
+        parts.append('<section class="sidebar-section">')
+        parts.append('<h3 class="sidebar-title">Stats</h3>')
+        parts.append('<dl class="sidebar-stats">')
+
+        total_files = len(self.stats["files_read"] | self.stats["files_edited"])
+        if total_files > 0:
+            parts.append(f"<dt>Files</dt><dd>{total_files}</dd>")
+
+        if self.stats["lines_added"] > 0 or self.stats["lines_removed"] > 0:
+            lines_str = f'+{self.stats["lines_added"]} -{self.stats["lines_removed"]}'
+            parts.append(f"<dt>Lines</dt><dd class='lines-changed'>{lines_str}</dd>")
+
+        if self.stats["tool_calls"] > 0:
+            parts.append(f'<dt>Tools</dt><dd>{self.stats["tool_calls"]}</dd>')
+
+        parts.append("</dl>")
+        parts.append("</section>")
+
+        # Files modified section
+        edited_files = self.stats["files_edited"]
+        if edited_files:
+            parts.append('<section class="sidebar-section">')
+            parts.append('<h3 class="sidebar-title">Files Modified</h3>')
+            parts.append('<ul class="file-list">')
+            for f in sorted(edited_files)[:10]:  # Limit to 10
+                filename = Path(f).name
+                parts.append(f"<li>{html.escape(filename)}</li>")
+            if len(edited_files) > 10:
+                parts.append(f"<li class='more'>+{len(edited_files) - 10} more</li>")
+            parts.append("</ul>")
+            parts.append("</section>")
+
+        parts.append("</aside>")
+        return "\n".join(parts)
 
     def _format_message_group(self, messages: list[dict[str, Any]], message_number: int = None) -> str:
         """Format a group of messages from the same role."""
         if not messages:
             return ""
 
-        # Get the role from the first message
         first_msg = messages[0]
         message_data = first_msg.get("message", {})
         role = message_data.get("role", "unknown")
 
-        # Process each message separately but display as one group
         message_parts = []
 
         for msg in messages:
-            msg_content = []
-
-            # Handle tool results that are stored at the message level
             if msg.get("type") == "tool_result":
                 continue
 
@@ -103,159 +211,138 @@ class HTMLFormatter(BaseFormatter):
             content = message_data.get("content", "")
 
             if isinstance(content, str):
-                msg_content.append(self._format_text_content(content, role))
+                message_parts.append(self._format_text_content(content, role))
             elif isinstance(content, list):
-                # Handle content array (e.g., text + tool uses)
                 for item in content:
                     if isinstance(item, dict):
                         if item.get("type") == "text":
-                            msg_content.append(self._format_text_content(item.get("text", ""), role))
+                            message_parts.append(self._format_text_content(item.get("text", ""), role))
                         elif item.get("type") == "tool_use":
-                            msg_content.append(self._format_tool_use_html(item, msg))
-
-            # Join content for this message
-            if msg_content:
-                message_parts.append("".join(msg_content))
+                            message_parts.append(self._format_tool_use_html(item, msg))
 
         if not message_parts:
             return ""
 
-        # Create message group HTML with heading and anchor
-        role_class = f"message-group {role}"
-        role_icon = "👤" if role == "user" else "🤖" if role == "assistant" else "⚙️"
-        role_name = role.title()
+        role_class = f"message {role}"
 
         html_parts = []
+        html_parts.append(f'<div class="{role_class}" id="msg-{message_number}">')
 
-        html_parts.append(f'<div class="{role_class}">')
-
-        # Add message header with role, anchor, and timestamp
-        header_parts = []
-        header_parts.append('<div class="message-header">')
-        header_parts.append(f'<h3 id="msg-{message_number}" class="message-title">')
-        header_parts.append(f"{role_icon} {role_name}")
-        header_parts.append(f'<a href="#msg-{message_number}" class="anchor-link">#</a>')
-        header_parts.append("</h3>")
-
-        # Add timestamp if available (use first message's timestamp for the group)
-        if messages and messages[0].get("timestamp"):
-            timestamp_str = messages[0]["timestamp"]
-            humanized = humanize_date(timestamp_str)
-            header_parts.append(f'<div class="message-timestamp">{humanized}</div>')
-
-        header_parts.append("</div>")
-        html_parts.extend(header_parts)
-
-        # Add message content
+        # Message content wrapper
         html_parts.append('<div class="message-content">')
+
+        # Message body (no header needed - avatar indicates role)
+        html_parts.append('<div class="message-body">')
         for part in message_parts:
             html_parts.append(part)
         html_parts.append("</div>")
 
-        html_parts.append("</div>")
+        html_parts.append("</div>")  # message-content
+        html_parts.append("</div>")  # message
         return "\n".join(html_parts)
-
-    def _get_message_preview(self, messages: list[dict[str, Any]], max_length: int = 50) -> str:
-        """Generate a preview of the message content for navigation."""
-        if not messages:
-            return "Empty message"
-
-        # Extract text content from the first message
-        first_msg = messages[0]
-        message_data = first_msg.get("message", {})
-        content = message_data.get("content", "")
-
-        preview_text = ""
-
-        if isinstance(content, str):
-            preview_text = content.strip()
-        elif isinstance(content, list):
-            # Look for text content in the list
-            for item in content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text = item.get("text", "").strip()
-                    if text:
-                        preview_text = text
-                        break
-                elif isinstance(item, dict) and item.get("type") == "tool_use":
-                    tool_name = item.get("name", "Unknown Tool")
-                    preview_text = f"[{tool_name} tool usage]"
-                    break
-
-        # Clean up the preview text
-        if preview_text:
-            # Remove markdown formatting for preview
-            preview_text = re.sub(r"\*\*(.*?)\*\*", r"\1", preview_text)  # Remove bold
-            preview_text = re.sub(r"\*(.*?)\*", r"\1", preview_text)  # Remove italic
-            preview_text = re.sub(r"`(.*?)`", r"\1", preview_text)  # Remove code
-            preview_text = re.sub(r"#+\s*", "", preview_text)  # Remove headers
-
-            # Don't truncate for HTML - show full preview
-            return html.escape(preview_text)
-
-        return "No content"
 
     def _format_text_content(self, content: str, role: str) -> str:
         """Format text content with proper HTML escaping and markdown conversion."""
         if not content.strip():
             return ""
 
-        # Escape HTML
-        content = html.escape(content)
+        # Check for thinking blocks (Claude's extended thinking)
+        thinking_match = re.search(r"<thinking>(.*?)</thinking>", content, re.DOTALL)
+        if thinking_match:
+            thinking_content = thinking_match.group(1)
+            content = re.sub(r"<thinking>.*?</thinking>", "", content, flags=re.DOTALL)
+            thinking_html = self._format_thinking_block(thinking_content)
+            if content.strip():
+                return thinking_html + self._format_regular_text(content, role)
+            return thinking_html
 
-        # Convert markdown to HTML
-        content = self._markdown_to_html(content)
+        return self._format_regular_text(content, role)
 
-        # Handle special tags for user messages
+    def _format_thinking_block(self, content: str) -> str:
+        """Format a thinking block as collapsible."""
+        escaped = html.escape(content.strip())
+        escaped = self._markdown_to_html(escaped)
+        return f"""<details class="thinking-block">
+<summary class="thinking-summary">Thinking</summary>
+<div class="thinking-content">{escaped}</div>
+</details>"""
+
+    def _format_regular_text(self, content: str, role: str) -> str:
+        """Format regular text content."""
+        escaped = html.escape(content)
+        escaped = self._markdown_to_html(escaped)
+
         if role == "user":
-            content = self._parse_special_tags_html(content)
+            escaped = self._parse_special_tags_html(escaped)
 
-        return f'<div class="text-content">{content}</div>'
+        return f'<div class="text-block">{escaped}</div>'
 
     def _markdown_to_html(self, content: str) -> str:
         """Convert basic markdown to HTML."""
+        # Code blocks first (before inline code)
+        content = re.sub(
+            r"```(\w*)\n(.*?)```",
+            lambda m: f'<pre class="code-block" data-lang="{m.group(1)}"><code>{m.group(2)}</code></pre>',
+            content,
+            flags=re.DOTALL,
+        )
+
         # Bold **text**
         content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", content)
 
         # Italic *text*
         content = re.sub(r"\*(.*?)\*", r"<em>\1</em>", content)
 
-        # Code `code`
+        # Inline code `code`
         content = re.sub(r"`(.*?)`", r"<code>\1</code>", content)
 
         # Headers
-        content = re.sub(r"^### (.*?)$", r"<h3>\1</h3>", content, flags=re.MULTILINE)
-        content = re.sub(r"^## (.*?)$", r"<h2>\1</h2>", content, flags=re.MULTILINE)
-        content = re.sub(r"^# (.*?)$", r"<h1>\1</h1>", content, flags=re.MULTILINE)
+        content = re.sub(r"^### (.*?)$", r"<h4>\1</h4>", content, flags=re.MULTILINE)
+        content = re.sub(r"^## (.*?)$", r"<h3>\1</h3>", content, flags=re.MULTILINE)
+        content = re.sub(r"^# (.*?)$", r"<h2>\1</h2>", content, flags=re.MULTILINE)
 
-        # Line breaks
-        content = content.replace("\n", "<br>\n")
+        # Numbered lists
+        content = re.sub(r"^(\d+)\. (.*?)$", r"<li>\2</li>", content, flags=re.MULTILINE)
+
+        # Line breaks (but not inside code blocks)
+        lines = content.split("\n")
+        result = []
+        in_code = False
+        for line in lines:
+            if "<pre" in line:
+                in_code = True
+            if "</pre>" in line:
+                in_code = False
+            if not in_code and line.strip():
+                result.append(line)
+            elif in_code:
+                result.append(line)
+            else:
+                result.append("<br>")
+        content = "\n".join(result)
 
         return content
 
     def _parse_special_tags_html(self, content: str) -> str:
         """Parse special tags in content for HTML."""
-        # Replace command-message tags
         content = re.sub(
-            r"<command-message>(.*?)</command-message>",
+            r"&lt;command-message&gt;(.*?)&lt;/command-message&gt;",
             r'<span class="command-message">\1</span>',
             content,
             flags=re.DOTALL,
         )
-
-        # Replace command-name tags
         content = re.sub(
-            r"<command-name>(.*?)</command-name>", r'<span class="command-name">\1</span>', content, flags=re.DOTALL
-        )
-
-        # Replace system-reminder tags
-        content = re.sub(
-            r"<system-reminder>(.*?)</system-reminder>",
-            r'<div class="system-reminder">System: \1</div>',
+            r"&lt;command-name&gt;(.*?)&lt;/command-name&gt;",
+            r'<span class="command-name">\1</span>',
             content,
             flags=re.DOTALL,
         )
-
+        content = re.sub(
+            r"&lt;system-reminder&gt;(.*?)&lt;/system-reminder&gt;",
+            r'<details class="system-reminder"><summary>System Reminder</summary>\1</details>',
+            content,
+            flags=re.DOTALL,
+        )
         return content
 
     def _format_tool_use_html(self, tool_use: dict[str, Any], msg: dict[str, Any]) -> str:
@@ -263,18 +350,16 @@ class HTMLFormatter(BaseFormatter):
         tool_name = tool_use.get("name", "Unknown Tool")
         tool_id = tool_use.get("id")
 
-        # Find the tool result for this tool use
+        self.stats["tool_calls"] += 1
+
         tool_result = None
         if tool_id:
-            # First check if there's a result mapped by the message UUID
             msg_uuid = msg.get("uuid")
             if msg_uuid and msg_uuid in self._tool_results:
                 tool_result = self._tool_results[msg_uuid]
-            # Also check by tool use ID (some formats might use this)
             elif tool_id in self._tool_results:
                 tool_result = self._tool_results[tool_id]
 
-        # Use the specific formatter for this tool
         return self.format_tool_use(tool_name, tool_use, tool_result)
 
     def format_tool_use(self, tool_name: str, tool_use: dict[str, Any], tool_result: str | None = None) -> str:
@@ -282,289 +367,324 @@ class HTMLFormatter(BaseFormatter):
         formatter = HTML_TOOL_FORMATTERS.get(tool_name)
 
         if formatter:
-            return formatter.format(tool_use, tool_result)
+            return formatter.format(tool_use, tool_result, self.stats)
         else:
-            # Fallback for unknown tools
-            return f'<div class="tool-use unknown-tool"><span class="tool-icon">🔧</span> <strong>{html.escape(tool_name)}</strong></div>'
+            return f'<div class="tool-pill unknown"><span class="tool-icon">⚙</span> {html.escape(tool_name)}</div>'
 
 
 class HTMLToolFormatter:
     """Base class for HTML tool formatters."""
 
-    def format(self, tool_use: dict[str, Any], tool_result: str | None = None) -> str:
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
         """Format a tool use and its result as HTML."""
         raise NotImplementedError
 
 
 class HTMLBashFormatter(HTMLToolFormatter):
-    """Format Bash tool usage for HTML."""
+    """Format Bash tool usage - terminal command style."""
 
-    def format(self, tool_use: dict[str, Any], tool_result: str | None = None) -> str:
-        """Format Bash command and output."""
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
         input_data = tool_use.get("input", {})
         command = input_data.get("command", "unknown command")
 
-        # Don't truncate commands for HTML
-        display_command = command
+        if stats:
+            stats["bash_commands"] += 1
 
-        # Format the command line
-        html_parts = []
-        html_parts.append('<div class="tool-use bash-tool">')
-        html_parts.append('<div class="tool-header">')
-        html_parts.append('<span class="tool-icon">⏺</span>')
-        html_parts.append(f"<strong>Bash</strong>(<code>{html.escape(display_command)}</code>)")
-        html_parts.append("</div>")
-
-        # Handle both string and dict formats for tool_result
         result_text = tool_result
         if isinstance(tool_result, dict) and "text" in tool_result:
             result_text = tool_result["text"]
 
+        parts = []
+        parts.append('<div class="terminal-block">')
+        parts.append('<div class="terminal-header">')
+        parts.append('<span class="terminal-prompt">&gt;_</span>')
+        parts.append(f'<code class="terminal-command">{html.escape(command)}</code>')
+        parts.append("</div>")
+
         if result_text and str(result_text).strip():
             lines = str(result_text).strip().split("\n")
-            # Filter out empty lines
-            lines = [line for line in lines if line.strip()]
+            if len(lines) > 5:
+                # Collapsible for long output
+                preview = "\n".join(lines[:3])
+                parts.append(f'<details class="terminal-output"><summary>{len(lines)} lines output</summary>')
+                parts.append(f"<pre>{html.escape(str(result_text).strip())}</pre>")
+                parts.append("</details>")
+            else:
+                parts.append(f'<pre class="terminal-output">{html.escape(str(result_text).strip())}</pre>')
 
-            if lines:
-                html_parts.append('<div class="tool-output">')
-                # Show all lines without truncation
-                for line in lines:
-                    html_parts.append(f'<div class="output-line">{html.escape(line)}</div>')
-                html_parts.append("</div>")
-
-        html_parts.append("</div>")
-        return "\n".join(html_parts)
+        parts.append("</div>")
+        return "\n".join(parts)
 
 
 class HTMLReadFormatter(HTMLToolFormatter):
-    """Format Read tool usage for HTML."""
+    """Format Read tool usage - file pill style."""
 
-    def format(self, tool_use: dict[str, Any], tool_result: str | None = None) -> str:
-        """Format file read operation."""
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
         input_data = tool_use.get("input", {})
         file_path = input_data.get("file_path", "unknown file")
+        offset = input_data.get("offset", "")
+        limit = input_data.get("limit", "")
 
-        # Extract just the filename
+        if stats:
+            stats["files_read"].add(file_path)
+
         filename = Path(file_path).name
+        line_info = ""
+        if offset or limit:
+            line_info = f" L{offset or 1}-{(offset or 0) + (limit or 100)}"
 
-        html_parts = []
-        html_parts.append('<div class="tool-use read-tool">')
-        html_parts.append('<div class="tool-header">')
-        html_parts.append('<span class="tool-icon">📄</span>')
-        html_parts.append(f"<strong>Read</strong>(<code>{html.escape(filename)}</code>)")
-        html_parts.append("</div>")
+        result_text = tool_result
+        if isinstance(tool_result, dict) and "text" in tool_result:
+            result_text = tool_result["text"]
 
-        if tool_result:
-            # Handle both string and dict formats for tool_result
-            result_text = tool_result
-            if isinstance(tool_result, dict) and "text" in tool_result:
-                result_text = tool_result["text"]
+        line_count = len(str(result_text).split("\n")) if result_text else 0
 
-            lines = str(result_text).strip().split("\n")
-            line_count = len(lines)
+        parts = []
+        parts.append('<details class="tool-pill read-pill">')
+        parts.append(
+            f'<summary><span class="pill-icon">📄</span> <span class="pill-file">{html.escape(filename)}</span>'
+        )
+        parts.append(f'<span class="pill-meta">{line_info} {line_count} lines</span></summary>')
 
-            html_parts.append(f'<div class="file-info">({line_count} lines)</div>')
+        if result_text:
+            parts.append(f'<pre class="file-content">{html.escape(str(result_text).strip())}</pre>')
 
-            # Show full file content without truncation
-            html_parts.append('<div class="file-preview">')
-            for line in lines:
-                html_parts.append(f'<div class="file-line">{html.escape(line)}</div>')
-            html_parts.append("</div>")
-
-        html_parts.append("</div>")
-        return "\n".join(html_parts)
+        parts.append("</details>")
+        return "\n".join(parts)
 
 
 class HTMLEditFormatter(HTMLToolFormatter):
-    """Format Edit tool usage for HTML."""
+    """Format Edit tool usage - diff block style."""
 
-    def format(self, tool_use: dict[str, Any], tool_result: str | None = None) -> str:
-        """Format file edit operation."""
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
         input_data = tool_use.get("input", {})
         file_path = input_data.get("file_path", "unknown file")
         old_string = input_data.get("old_string", "")
         new_string = input_data.get("new_string", "")
 
-        filename = Path(file_path).name
+        if stats:
+            stats["files_edited"].add(file_path)
+            old_lines = len(old_string.split("\n")) if old_string else 0
+            new_lines = len(new_string.split("\n")) if new_string else 0
+            stats["lines_added"] += max(0, new_lines - old_lines) if new_lines > old_lines else new_lines
+            stats["lines_removed"] += max(0, old_lines - new_lines) if old_lines > new_lines else old_lines
 
-        # Count changed lines
+        filename = Path(file_path).name
         old_lines = old_string.split("\n") if old_string else []
         new_lines = new_string.split("\n") if new_string else []
 
-        html_parts = []
-        html_parts.append('<div class="tool-use edit-tool">')
-        html_parts.append('<div class="tool-header">')
-        html_parts.append('<span class="tool-icon">✏️</span>')
-        html_parts.append(f"<strong>Edit</strong>(<code>{html.escape(filename)}</code>)")
+        diff = len(new_lines) - len(old_lines)
+        diff_str = f"+{diff}" if diff >= 0 else str(diff)
 
-        # Show line count change
-        if len(old_lines) == len(new_lines):
-            html_parts.append(f'<span class="edit-info">({len(old_lines)} lines modified)</span>')
-        else:
-            diff = len(new_lines) - len(old_lines)
-            if diff > 0:
-                html_parts.append(f'<span class="edit-info">(+{diff} lines)</span>')
-            else:
-                html_parts.append(f'<span class="edit-info">({diff} lines)</span>')
-
-        # Handle success check for both formats
         result_text = tool_result
         if isinstance(tool_result, dict) and "text" in tool_result:
             result_text = tool_result["text"]
 
-        if result_text and "updated" in str(result_text).lower():
-            html_parts.append('<span class="success-indicator">✓</span>')
+        success = result_text and "updated" in str(result_text).lower()
 
-        html_parts.append("</div>")
+        parts = []
+        parts.append('<div class="diff-block">')
+        parts.append('<div class="diff-header">')
+        parts.append(f'<span class="diff-icon">📝</span>')
+        parts.append(f'<span class="diff-file">{html.escape(filename)}</span>')
+        parts.append(f'<span class="diff-lines">{diff_str}</span>')
+        if success:
+            parts.append('<span class="diff-success">✓</span>')
+        parts.append("</div>")
 
-        # Show diff preview
-        if old_lines or new_lines:
-            html_parts.append('<div class="diff-preview">')
-            # Show all removed lines
-            for line in old_lines:
-                if line.strip():
-                    html_parts.append(f'<div class="diff-line removed">- {html.escape(line)}</div>')
+        parts.append('<div class="diff-content">')
+        for line in old_lines:
+            parts.append(f'<div class="diff-line removed">- {html.escape(line)}</div>')
+        for line in new_lines:
+            parts.append(f'<div class="diff-line added">+ {html.escape(line)}</div>')
+        parts.append("</div>")
 
-            # Show all added lines
-            for line in new_lines:
-                if line.strip():
-                    html_parts.append(f'<div class="diff-line added">+ {html.escape(line)}</div>')
-
-            html_parts.append("</div>")
-
-        html_parts.append("</div>")
-        return "\n".join(html_parts)
+        parts.append('<div class="diff-progress"></div>')
+        parts.append("</div>")
+        return "\n".join(parts)
 
 
 class HTMLMultiEditFormatter(HTMLToolFormatter):
-    """Format MultiEdit tool usage for HTML."""
+    """Format MultiEdit tool usage."""
 
-    def format(self, tool_use: dict[str, Any], tool_result: str | None = None) -> str:
-        """Format multi-edit operation."""
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
         input_data = tool_use.get("input", {})
         file_path = input_data.get("file_path", "unknown file")
         edits = input_data.get("edits", [])
 
+        if stats:
+            stats["files_edited"].add(file_path)
+
         filename = Path(file_path).name
 
-        html_parts = []
-        html_parts.append('<div class="tool-use multiedit-tool">')
-        html_parts.append('<div class="tool-header">')
-        html_parts.append('<span class="tool-icon">✏️</span>')
-        html_parts.append(f"<strong>MultiEdit</strong>(<code>{html.escape(filename)}</code>)")
+        parts = []
+        parts.append('<div class="diff-block multi">')
+        parts.append('<div class="diff-header">')
+        parts.append(f'<span class="diff-icon">📝</span>')
+        parts.append(f'<span class="diff-file">{html.escape(filename)}</span>')
+        parts.append(f'<span class="diff-lines">{len(edits)} edits</span>')
+        parts.append("</div>")
 
-        # Show edit count
-        edit_count = len(edits)
-        html_parts.append(f'<span class="edit-info">({edit_count} edits)</span>')
+        for i, edit in enumerate(edits, 1):
+            old_string = edit.get("old_string", "")
+            new_string = edit.get("new_string", "")
 
-        # Handle success check for both formats
-        result_text = tool_result
-        if isinstance(tool_result, dict) and "text" in tool_result:
-            result_text = tool_result["text"]
+            if stats:
+                old_lines = len(old_string.split("\n")) if old_string else 0
+                new_lines = len(new_string.split("\n")) if new_string else 0
+                stats["lines_added"] += new_lines
+                stats["lines_removed"] += old_lines
 
-        if result_text and ("updated" in str(result_text).lower() or "applied" in str(result_text).lower()):
-            html_parts.append('<span class="success-indicator">✓</span>')
+            parts.append(f'<div class="diff-section"><span class="edit-num">Edit {i}</span>')
+            parts.append('<div class="diff-content">')
+            for line in old_string.split("\n") if old_string else []:
+                parts.append(f'<div class="diff-line removed">- {html.escape(line)}</div>')
+            for line in new_string.split("\n") if new_string else []:
+                parts.append(f'<div class="diff-line added">+ {html.escape(line)}</div>')
+            parts.append("</div></div>")
 
-        html_parts.append("</div>")
-
-        # Show each edit as a diff
-        if edits:
-            html_parts.append('<div class="multiedit-preview">')
-            for i, edit in enumerate(edits, 1):
-                old_string = edit.get("old_string", "")
-                new_string = edit.get("new_string", "")
-                replace_all = edit.get("replace_all", False)
-
-                html_parts.append('<div class="edit-section">')
-                html_parts.append(
-                    f'<div class="edit-number">Edit {i}' + (" (replace all)" if replace_all else "") + "</div>"
-                )
-
-                # Show diff for this edit
-                old_lines = old_string.split("\n") if old_string else []
-                new_lines = new_string.split("\n") if new_string else []
-
-                html_parts.append('<div class="diff-preview">')
-
-                # Show all removed lines
-                for line in old_lines:
-                    if line.strip() or old_lines == [""]:  # Show empty lines too if that's the only content
-                        html_parts.append(f'<div class="diff-line removed">- {html.escape(line)}</div>')
-
-                # Show all added lines
-                for line in new_lines:
-                    if line.strip() or new_lines == [""]:  # Show empty lines too if that's the only content
-                        html_parts.append(f'<div class="diff-line added">+ {html.escape(line)}</div>')
-
-                html_parts.append("</div>")
-                html_parts.append("</div>")
-
-            html_parts.append("</div>")
-
-        html_parts.append("</div>")
-        return "\n".join(html_parts)
+        parts.append('<div class="diff-progress"></div>')
+        parts.append("</div>")
+        return "\n".join(parts)
 
 
 class HTMLGrepFormatter(HTMLToolFormatter):
-    """Format Grep tool usage for HTML."""
+    """Format Grep tool usage - search pill style."""
 
-    def format(self, tool_use: dict[str, Any], tool_result: str | None = None) -> str:
-        """Format grep search operation."""
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
         input_data = tool_use.get("input", {})
         pattern = input_data.get("pattern", "unknown pattern")
         path = input_data.get("path", ".")
-        include = input_data.get("include", "")
 
-        html_parts = []
-        html_parts.append('<div class="tool-use grep-tool">')
-        html_parts.append('<div class="tool-header">')
-        html_parts.append('<span class="tool-icon">🔍</span>')
-        html_parts.append(f"<strong>Grep</strong>(<code>{html.escape(pattern)}</code>")
+        if stats:
+            stats["searches"] += 1
 
-        # Add path and include info if different from defaults
-        if path != ".":
-            html_parts.append(f" in <code>{html.escape(path)}</code>")
-        if include:
-            html_parts.append(f" include <code>{html.escape(include)}</code>")
-
-        html_parts.append(")")
-        html_parts.append("</div>")
-
-        # Handle both string and dict formats for tool_result
         result_text = tool_result
         if isinstance(tool_result, dict) and "text" in tool_result:
             result_text = tool_result["text"]
 
-        if result_text and str(result_text).strip():
-            lines = str(result_text).strip().split("\n")
-            # Filter out empty lines
-            lines = [line for line in lines if line.strip()]
+        match_count = 0
+        if result_text:
+            lines = [l for l in str(result_text).strip().split("\n") if l.strip()]
+            match_count = len(lines)
 
-            if lines:
-                # Count matches
-                file_count = len(lines)
-                html_parts.append(f'<div class="grep-info">Found {file_count} matching files</div>')
+        path_display = Path(path).name if path != "." else "project"
 
-                html_parts.append('<div class="tool-output">')
-                # Show all matching files
-                for line in lines:
-                    html_parts.append(f'<div class="output-line">{html.escape(line)}</div>')
-                html_parts.append("</div>")
-        else:
-            html_parts.append('<div class="grep-info">No matches found</div>')
+        parts = []
+        parts.append('<details class="tool-pill search-pill">')
+        parts.append(
+            f'<summary><span class="pill-icon">🔍</span> <code class="pill-query">{html.escape(pattern)}</code>'
+        )
+        parts.append(f'<span class="pill-meta">{match_count} matches in {html.escape(path_display)}</span></summary>')
 
-        html_parts.append("</div>")
-        return "\n".join(html_parts)
+        if result_text and match_count > 0:
+            parts.append('<div class="search-results">')
+            for line in str(result_text).strip().split("\n")[:20]:
+                if line.strip():
+                    parts.append(f'<div class="search-result">{html.escape(line)}</div>')
+            if match_count > 20:
+                parts.append(f'<div class="search-more">+{match_count - 20} more matches</div>')
+            parts.append("</div>")
+
+        parts.append("</details>")
+        return "\n".join(parts)
+
+
+class HTMLWriteFormatter(HTMLToolFormatter):
+    """Format Write tool usage."""
+
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
+        input_data = tool_use.get("input", {})
+        file_path = input_data.get("file_path", "unknown file")
+        content = input_data.get("content", "")
+
+        if stats:
+            stats["files_edited"].add(file_path)
+            stats["lines_added"] += len(content.split("\n")) if content else 0
+
+        filename = Path(file_path).name
+        line_count = len(content.split("\n")) if content else 0
+
+        parts = []
+        parts.append('<details class="tool-pill write-pill">')
+        parts.append(
+            f'<summary><span class="pill-icon">💾</span> <span class="pill-file">{html.escape(filename)}</span>'
+        )
+        parts.append(f'<span class="pill-meta">+{line_count} lines (new file)</span></summary>')
+
+        if content:
+            preview = "\n".join(content.split("\n")[:20])
+            parts.append(f'<pre class="file-content">{html.escape(preview)}</pre>')
+            if line_count > 20:
+                parts.append(f'<div class="file-more">+{line_count - 20} more lines</div>')
+
+        parts.append("</details>")
+        return "\n".join(parts)
+
+
+class HTMLTaskFormatter(HTMLToolFormatter):
+    """Format Task/Agent tool usage."""
+
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
+        input_data = tool_use.get("input", {})
+        description = input_data.get("description", input_data.get("prompt", "Task"))
+
+        result_text = tool_result
+        if isinstance(tool_result, dict) and "text" in tool_result:
+            result_text = tool_result["text"]
+
+        parts = []
+        parts.append('<details class="tool-pill task-pill">')
+        parts.append(
+            f'<summary><span class="pill-icon">🤖</span> <span class="pill-task">{html.escape(description)}</span></summary>'
+        )
+
+        if result_text:
+            parts.append(f'<div class="task-result">{html.escape(str(result_text)[:500])}</div>')
+
+        parts.append("</details>")
+        return "\n".join(parts)
+
+
+class HTMLTodoFormatter(HTMLToolFormatter):
+    """Format TodoWrite tool usage."""
+
+    def format(self, tool_use: dict[str, Any], tool_result: str | None = None, stats: dict = None) -> str:
+        input_data = tool_use.get("input", {})
+        todos = input_data.get("todos", [])
+
+        parts = []
+        parts.append('<div class="todo-block">')
+        parts.append('<div class="todo-header"><span class="pill-icon">📋</span> Todos</div>')
+        parts.append('<ul class="todo-list">')
+
+        for todo in todos[:8]:
+            content = todo.get("content", "")
+            status = todo.get("status", "pending")
+            icon = "✓" if status == "completed" else "○" if status == "pending" else "◐"
+            status_class = status
+            parts.append(
+                f'<li class="todo-item {status_class}"><span class="todo-icon">{icon}</span> {html.escape(content)}</li>'
+            )
+
+        if len(todos) > 8:
+            parts.append(f'<li class="todo-more">+{len(todos) - 8} more</li>')
+
+        parts.append("</ul>")
+        parts.append("</div>")
+        return "\n".join(parts)
 
 
 # Registry of HTML tool formatters
 HTML_TOOL_FORMATTERS = {
     "Bash": HTMLBashFormatter(),
     "Read": HTMLReadFormatter(),
+    "Write": HTMLWriteFormatter(),
     "Edit": HTMLEditFormatter(),
     "MultiEdit": HTMLMultiEditFormatter(),
     "Grep": HTMLGrepFormatter(),
-    # Add more formatters as needed
+    "Task": HTMLTaskFormatter(),
+    "TodoWrite": HTMLTodoFormatter(),
 }
 
 
@@ -572,71 +692,80 @@ def get_extra_html_css(css_file_path: str | None = None) -> str:
     """Return extra CSS styles from a custom stylesheet file."""
     if not css_file_path:
         return ""
-
     try:
         css_path = Path(css_file_path)
         if css_path.exists():
             return f"\n<style>\n{css_path.read_text(encoding='utf-8')}\n</style>"
     except Exception:
-        # Silently ignore errors reading the CSS file
         pass
-
     return ""
 
 
 def get_html_css() -> str:
-    """Return CSS styles for HTML output - nof1-inspired terminal aesthetic."""
+    """Return CSS styles for HTML output - nof1 terminal aesthetic with ampcode features."""
     return """
 <style>
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@100;200;300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap");
 
 :root {
-    --background: #ffffff;
-    --surface: #ffffff;
-    --surface-elevated: #f8f9fa;
-    --foreground: #000000;
-    --foreground-muted: #333333;
-    --foreground-subtle: #666666;
-    --border: #000000;
-    --border-subtle: #cccccc;
-    --terminal-green: #00aa00;
-    --terminal-red: #cc0000;
-    --terminal-yellow: #b8860b;
-    --terminal-blue: #0000aa;
+    /* nof1 light theme - clean terminal aesthetic */
+    --bg: #ffffff;
+    --bg-elevated: #fafafa;
+    --bg-subtle: #f5f5f5;
+    --fg: #000000;
+    --fg-muted: #666666;
+    --fg-subtle: #999999;
+    --border: #cccccc;
+    --border-muted: #e0e0e0;
+    --accent: #000000;
+    --accent-emphasis: #000000;
+    --success: #006600;
+    --success-subtle: rgba(0, 102, 0, 0.1);
+    --danger: #cc0000;
+    --danger-subtle: rgba(204, 0, 0, 0.1);
+    --warning: #996600;
+    --warning-subtle: rgba(153, 102, 0, 0.1);
 }
 
 [data-theme="dark"] {
-    --background: #000000;
-    --surface: #0a0a0a;
-    --surface-elevated: #111111;
-    --foreground: #00ff00;
-    --foreground-muted: #00cc00;
-    --foreground-subtle: #00aa00;
-    --border: #00ff00;
-    --border-subtle: #006600;
-    --terminal-green: #00ff00;
-    --terminal-red: #ff0000;
-    --terminal-yellow: #ffff00;
-    --terminal-blue: #00ffff;
+    --bg: #000000;
+    --bg-elevated: #0a0a0a;
+    --bg-subtle: #111111;
+    --fg: #ffffff;
+    --fg-muted: #888888;
+    --fg-subtle: #555555;
+    --border: #333333;
+    --border-muted: #222222;
+    --accent: #ffffff;
+    --accent-emphasis: #ffffff;
+    --success: #00ff00;
+    --success-subtle: rgba(0, 255, 0, 0.1);
+    --danger: #ff3333;
+    --danger-subtle: rgba(255, 51, 51, 0.1);
+    --warning: #ffcc00;
+    --warning-subtle: rgba(255, 204, 0, 0.1);
 }
 
-*, *:before, *:after {
+*, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
-html, body {
-    height: 100%;
-    background: var(--background);
-    color: var(--foreground);
-    font-family: "IBM Plex Mono", monospace;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    line-height: 1.5;
-    letter-spacing: -0.02em;
+html {
+    font-size: 14px;
 }
 
-/* Noise texture overlay */
+body {
+    font-family: "IBM Plex Mono", monospace;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+}
+
+/* nof1 noise texture overlay */
 body::before {
     content: "";
     position: fixed;
@@ -644,395 +773,700 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
-    background-size: 180px 180px;
     pointer-events: none;
-    z-index: 1;
-    opacity: 0.5;
+    opacity: 0.03;
+    z-index: 1000;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
-.conversation {
-    position: relative;
-    z-index: 2;
-    max-width: 900px;
+/* Thread Layout */
+.thread {
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 48px 32px;
 }
 
-/* Headers - uppercase terminal style */
-h1, h2, h3, h4, h5, h6 {
-    font-family: "IBM Plex Mono", monospace;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    line-height: 1.2;
-}
-
-.conversation-header {
-    margin-bottom: 40px;
-    padding-bottom: 20px;
-    border-bottom: 2px solid var(--border);
-}
-
-.conversation-header h2 {
-    margin: 0;
-    color: var(--foreground);
-    font-size: 1.1rem;
-}
-
-.timestamp {
-    color: var(--foreground-subtle);
-    font-size: 0.75rem;
-    margin-top: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-/* Navigation */
-.message-nav, .conversation-nav {
-    background-color: var(--surface);
-    border: 1px solid var(--border);
-    padding: 20px;
-    margin-bottom: 30px;
-}
-
-.message-nav h3, .conversation-nav h2 {
-    margin: 0 0 15px 0;
-    color: var(--foreground);
-    font-size: 0.875rem;
-    border-bottom: 1px solid var(--border-subtle);
-    padding-bottom: 10px;
-}
-
-.message-toc, .conversation-toc {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.message-toc li, .conversation-toc li {
-    margin-bottom: 4px;
-}
-
-.message-toc a, .conversation-toc a {
-    color: var(--foreground);
-    text-decoration: none;
-    padding: 6px 10px;
-    display: block;
-    font-size: 0.8rem;
-    border: 1px solid transparent;
-    transition: none;
-}
-
-.message-toc a:hover, .conversation-toc a:hover {
-    background-color: var(--foreground);
-    color: var(--background);
-    text-decoration: none;
-}
-
-/* Message sections */
-.message-header {
-    margin: 50px 0 15px 0;
-    padding-bottom: 8px;
+.thread-header {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
     border-bottom: 1px solid var(--border);
 }
 
-.message-title {
-    margin: 0;
-    color: var(--foreground);
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.anchor-link {
-    color: var(--foreground-subtle);
-    text-decoration: none;
-    font-weight: normal;
-    font-size: 0.75rem;
-}
-
-.anchor-link:hover {
-    color: var(--foreground);
-}
-
-.message-timestamp {
-    color: var(--foreground-subtle);
-    font-size: 0.7rem;
-    font-weight: normal;
-    margin-top: 4px;
+.thread-title {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--fg);
+    margin-bottom: 16px;
+    line-height: 1.4;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.1em;
 }
 
-.message-group {
-    margin-bottom: 30px;
+.thread-meta {
+    display: flex;
+    gap: 24px;
+    color: var(--fg-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
 }
 
-.message-group.user {
-    border-left: 3px solid var(--foreground);
-    padding-left: 15px;
+.meta-item::before {
+    content: "/";
+    margin-right: 24px;
+    color: var(--border);
 }
 
-.message-group.assistant {
-    border-left: 3px solid var(--foreground-subtle);
-    padding-left: 15px;
+.meta-item:first-child::before {
+    display: none;
 }
 
-.message-content {
-    flex: 1;
+/* Two-column layout */
+.thread-body {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 48px;
+}
+
+@media (max-width: 1000px) {
+    .thread-body {
+        grid-template-columns: 1fr;
+    }
+    .thread-sidebar {
+        order: -1;
+    }
+}
+
+.thread-content {
     min-width: 0;
 }
 
-/* Back to top */
-.back-to-top {
-    text-align: center;
-    margin: 50px 0 20px 0;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
+/* Sidebar - nof1 style */
+.thread-sidebar {
+    position: sticky;
+    top: 32px;
+    height: fit-content;
 }
 
-.back-to-top a {
-    color: var(--foreground);
-    text-decoration: none;
-    padding: 8px 16px;
-    background-color: var(--surface);
+.sidebar-section {
+    background: var(--bg);
     border: 1px solid var(--border);
-    display: inline-block;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    transition: none;
+    padding: 20px;
+    margin-bottom: 20px;
 }
 
-.back-to-top a:hover {
-    background-color: var(--foreground);
-    color: var(--background);
+.sidebar-title {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--fg-muted);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-muted);
+}
+
+.sidebar-stats {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px 20px;
+    font-size: 0.8rem;
+}
+
+.sidebar-stats dt {
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.7rem;
+}
+
+.sidebar-stats dd {
+    text-align: right;
+    font-weight: 500;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.sidebar-stats .lines-changed {
+    color: var(--success);
+}
+
+.file-list {
+    list-style: none;
+    font-size: 0.75rem;
+}
+
+.file-list li {
+    padding: 8px 0;
+    color: var(--fg-muted);
+    border-bottom: 1px solid var(--border-muted);
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.file-list li:last-child {
+    border-bottom: none;
+}
+
+.file-list .more {
+    color: var(--fg-subtle);
+    font-style: italic;
+}
+
+/* Role separator - visual break between conversation turns */
+.role-separator {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 32px 0;
+    position: relative;
+}
+
+.role-separator::after {
+    content: "•";
+    position: absolute;
+    left: 50%;
+    top: -0.5em;
+    transform: translateX(-50%);
+    background: var(--bg);
+    padding: 0 12px;
+    color: var(--border);
+    font-size: 0.8rem;
+}
+
+/* Messages - hybrid chat layout */
+.message {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+/* User messages - right-aligned bubbles */
+.message.user {
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+
+.message.user .message-content {
+    max-width: 70%;
+    background: var(--fg);
+    color: var(--bg);
+    border-radius: 16px 16px 4px 16px;
+    padding: 12px 16px;
+}
+
+.message.user .message-content code {
+    background: rgba(255,255,255,0.2);
+    color: var(--bg);
+}
+
+.message.user .text-block {
+    margin-bottom: 0;
+}
+
+/* Assistant messages - left-aligned with border bubble */
+.message.assistant {
+    justify-content: flex-start;
+    margin-bottom: 20px;
+}
+
+.message.assistant .message-content {
+    max-width: 85%;
+    border: 1px solid var(--border);
+    border-radius: 16px 16px 16px 4px;
+    padding: 16px 20px;
+}
+
+.message-content {
+    min-width: 0;
+}
+
+.message-body {
+    /* Content flows naturally */
 }
 
 /* Text content */
-.text-content {
-    margin-bottom: 15px;
-    font-size: 0.875rem;
-    line-height: 1.6;
+.text-block {
+    margin-bottom: 12px;
+    line-height: 1.5;
 }
 
-.text-content h1, .text-content h2, .text-content h3 {
-    margin: 25px 0 12px 0;
-    color: var(--foreground);
+.text-block h2, .text-block h3, .text-block h4 {
+    margin: 16px 0 8px 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
 }
 
-.text-content h1 { font-size: 1rem; }
-.text-content h2 { font-size: 0.9rem; }
-.text-content h3 { font-size: 0.85rem; }
-
-.text-content code {
-    background-color: var(--surface-elevated);
-    padding: 2px 6px;
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 0.85em;
-    border: 1px solid var(--border-subtle);
+.text-block code {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-muted);
+    padding: 2px 8px;
+    font-size: 0.9em;
 }
 
-.text-content strong {
+.text-block strong {
     font-weight: 600;
 }
 
-/* Tool blocks - terminal style */
-.tool-use {
-    background-color: var(--surface);
+.text-block li {
+    margin-left: 24px;
+    margin-bottom: 8px;
+}
+
+.code-block {
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
-    padding: 12px 15px;
-    margin: 15px 0;
+    padding: 12px;
+    overflow-x: auto;
+    margin: 8px 0;
     font-size: 0.8rem;
 }
 
-.tool-header {
+/* Thinking block */
+.thinking-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    margin: 8px 0;
+}
+
+.thinking-summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--fg-muted);
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
-    font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.1em;
+    font-size: 0.65rem;
 }
 
-.tool-icon {
-    font-size: 1em;
+.thinking-summary::before {
+    content: "▶";
+    font-size: 0.6em;
+    transition: transform 0.2s;
 }
 
-.bash-tool .tool-header {
-    color: var(--terminal-red);
+.thinking-block[open] .thinking-summary::before {
+    transform: rotate(90deg);
 }
 
-.read-tool .tool-header {
-    color: var(--terminal-green);
+.thinking-content {
+    padding: 0 12px 12px;
+    border-top: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-size: 0.8rem;
 }
 
-.edit-tool .tool-header,
-.multiedit-tool .tool-header {
-    color: var(--terminal-yellow);
+/* Tool Pills */
+.tool-pill {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    margin: 10px 0;
+    font-size: 0.8rem;
 }
 
-.grep-tool .tool-header {
-    color: var(--terminal-blue);
+.tool-pill summary {
+    padding: 10px 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    list-style: none;
 }
 
-.tool-output, .file-preview, .diff-preview, .multiedit-preview {
-    background-color: var(--surface-elevated);
-    border: 1px solid var(--border-subtle);
-    padding: 10px 12px;
-    margin-top: 10px;
-    font-family: "IBM Plex Mono", monospace;
+.tool-pill summary::-webkit-details-marker {
+    display: none;
+}
+
+.pill-icon {
+    font-size: 0.9em;
+    opacity: 0.7;
+}
+
+.pill-file, .pill-task {
+    font-weight: 500;
+    color: var(--fg);
+}
+
+.pill-query {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-muted);
+    padding: 4px 8px;
+}
+
+.pill-meta {
+    color: var(--fg-subtle);
+    margin-left: auto;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.tool-pill .file-content,
+.tool-pill .search-results,
+.tool-pill .task-result {
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
     font-size: 0.75rem;
-    overflow-x: auto;
+    max-height: 300px;
+    overflow: auto;
 }
 
-.output-line, .file-line {
-    margin-bottom: 1px;
+.search-result {
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-muted);
+}
+
+.search-more, .file-more {
+    padding-top: 8px;
+    color: var(--fg-subtle);
+    font-style: italic;
+}
+
+/* Terminal Block */
+.terminal-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.terminal-header {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+}
+
+.terminal-prompt {
+    color: var(--success);
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.terminal-command {
+    color: var(--fg);
+    font-size: 0.8rem;
+}
+
+.terminal-output {
+    padding: 12px 14px;
+    font-size: 0.75rem;
+    background: var(--bg);
+    margin: 0;
+    max-height: 200px;
+    overflow: auto;
+    color: var(--fg-muted);
+}
+
+.terminal-output summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--fg-muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* Diff Block */
+.diff-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.diff-header {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+}
+
+.diff-icon {
+    font-size: 0.9em;
+    opacity: 0.7;
+}
+
+.diff-file {
+    font-weight: 500;
+    color: var(--fg);
+    font-size: 0.85rem;
+}
+
+.diff-lines {
+    background: transparent;
+    border: 1px solid var(--success);
+    color: var(--success);
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.diff-success {
+    color: var(--success);
+    margin-left: auto;
+}
+
+.diff-content {
+    padding: 8px 0;
+    font-size: 0.75rem;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.diff-line {
+    padding: 3px 14px;
     white-space: pre-wrap;
     word-break: break-all;
 }
 
-.output-summary {
-    color: var(--foreground-subtle);
-    font-style: italic;
-    margin-top: 8px;
-    font-size: 0.7rem;
-}
-
-.file-info, .edit-info, .grep-info {
-    color: var(--foreground-subtle);
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.edit-info, .grep-info {
-    margin-left: 10px;
-}
-
-.success-indicator {
-    color: var(--terminal-green);
-    margin-left: 8px;
-}
-
-/* Diff styling */
-.diff-line {
-    margin-bottom: 1px;
-    padding: 1px 4px;
-    font-family: "IBM Plex Mono", monospace;
-}
-
 .diff-line.removed {
-    background-color: rgba(204, 0, 0, 0.15);
-    color: var(--terminal-red);
+    background: var(--danger-subtle);
+    color: var(--danger);
 }
 
 .diff-line.added {
-    background-color: rgba(0, 170, 0, 0.15);
-    color: var(--terminal-green);
+    background: var(--success-subtle);
+    color: var(--success);
 }
 
-[data-theme="dark"] .diff-line.removed {
-    background-color: rgba(255, 0, 0, 0.2);
+.diff-progress {
+    height: 2px;
+    background: var(--success);
 }
 
-[data-theme="dark"] .diff-line.added {
-    background-color: rgba(0, 255, 0, 0.15);
+.diff-section {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+.edit-num {
+    display: block;
+    padding: 8px 16px;
+    font-size: 0.7rem;
+    color: var(--fg-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* Todo Block */
+.todo-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    margin: 6px 0;
+    padding: 10px 12px;
+}
+
+.todo-header {
+    font-weight: 500;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.65rem;
+    color: var(--fg-muted);
+}
+
+.todo-list {
+    list-style: none;
+}
+
+.todo-item {
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-muted);
+    font-size: 0.8rem;
+}
+
+.todo-item:last-child {
+    border-bottom: none;
+}
+
+.todo-icon {
+    width: 16px;
+    text-align: center;
+}
+
+.todo-item.completed {
+    color: var(--fg-muted);
+}
+
+.todo-item.completed .todo-icon {
+    color: var(--success);
+}
+
+.todo-item.in_progress .todo-icon {
+    color: var(--warning);
+}
+
+.todo-more {
+    padding-top: 12px;
+    color: var(--fg-subtle);
+    font-style: italic;
 }
 
 /* Special tags */
 .command-message {
     font-style: italic;
-    color: var(--foreground-subtle);
+    color: var(--fg-muted);
 }
 
 .command-name {
     font-weight: 600;
-    color: var(--terminal-blue);
+    color: var(--fg);
 }
 
 .system-reminder {
-    background-color: rgba(184, 134, 11, 0.1);
-    border: 1px solid var(--terminal-yellow);
-    border-left: 3px solid var(--terminal-yellow);
-    padding: 10px 12px;
-    margin: 12px 0;
-    color: var(--foreground);
-    font-size: 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--warning);
+    margin: 16px 0;
 }
 
-.unknown-tool {
-    border-left: 3px solid var(--foreground-subtle);
-}
-
-/* Multi-edit sections */
-.edit-section {
-    margin-bottom: 15px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.edit-section:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.edit-number {
-    font-weight: 600;
-    color: var(--foreground);
-    margin-bottom: 6px;
-    font-size: 0.7rem;
+.system-reminder summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    color: var(--warning);
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.1em;
+    font-size: 0.7rem;
 }
 
-/* Theme toggle button (optional) */
+.system-reminder > div {
+    padding: 0 16px 16px;
+    font-size: 0.85rem;
+}
+
+/* Container */
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Theme toggle - nof1 style */
 .theme-toggle {
     position: fixed;
     top: 20px;
     right: 20px;
     z-index: 100;
-    background: var(--surface);
+    background: var(--bg);
     border: 1px solid var(--border);
-    color: var(--foreground);
-    padding: 6px 12px;
+    color: var(--fg);
+    padding: 10px 16px;
     font-family: "IBM Plex Mono", monospace;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 0.65rem;
     cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
 }
 
 .theme-toggle:hover {
-    background: var(--foreground);
-    color: var(--background);
+    background: var(--fg);
+    color: var(--bg);
 }
 
-/* Scrollbar hiding */
-* {
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
+/* Back to top */
+.back-to-top {
+    text-align: center;
+    padding: 48px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 48px;
 }
 
-*::-webkit-scrollbar {
-    display: none !important;
+.back-to-top a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
 }
 
-/* Print styles */
+.back-to-top a:hover {
+    color: var(--fg);
+}
+
+/* Conversation nav */
+.conversation-nav {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 48px;
+}
+
+.conversation-nav h2 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--fg-muted);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-muted);
+}
+
+.conversation-toc {
+    list-style: none;
+}
+
+.conversation-toc li {
+    margin-bottom: 8px;
+}
+
+.conversation-toc a {
+    display: block;
+    padding: 12px 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    text-decoration: none;
+    font-size: 0.8rem;
+}
+
+.conversation-toc a:hover {
+    background: var(--fg);
+    color: var(--bg);
+}
+
+/* Scrollbar - minimal */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-subtle);
+}
+
+/* Print */
 @media print {
+    .theme-toggle, .thread-sidebar {
+        display: none;
+    }
+    .thread-body {
+        grid-template-columns: 1fr;
+    }
     body::before {
         display: none;
-    }
-    .theme-toggle {
-        display: none;
-    }
-    .conversation {
-        max-width: 100%;
-        padding: 0;
     }
 }
 </style>
