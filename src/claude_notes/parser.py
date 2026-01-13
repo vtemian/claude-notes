@@ -33,9 +33,36 @@ class TranscriptParser:
 
         # Find first and last timestamps
         timestamps = []
+        total_duration_ms = 0
+        total_input_tokens = 0
+        total_output_tokens = 0
+        total_cache_read = 0
+        total_cache_creation = 0
+        model = None
+        version = None
+        git_branch = None
+
         for msg in self.messages:
             if "timestamp" in msg:
                 timestamps.append(msg["timestamp"])
+            if "durationMs" in msg:
+                total_duration_ms += msg["durationMs"]
+            if "version" in msg and msg["version"]:
+                version = msg["version"]
+            if "gitBranch" in msg and msg["gitBranch"]:
+                git_branch = msg["gitBranch"]
+
+            # Extract usage from message
+            if "message" in msg and isinstance(msg["message"], dict):
+                message = msg["message"]
+                if "model" in message:
+                    model = message["model"]
+                if "usage" in message:
+                    usage = message["usage"]
+                    total_input_tokens += usage.get("input_tokens", 0)
+                    total_output_tokens += usage.get("output_tokens", 0)
+                    total_cache_read += usage.get("cache_read_input_tokens", 0)
+                    total_cache_creation += usage.get("cache_creation_input_tokens", 0)
 
         # Count actual messages (not meta messages)
         actual_messages = [m for m in self.messages if not m.get("isMeta", False)]
@@ -46,6 +73,14 @@ class TranscriptParser:
             "total_entries": len(self.messages),
             "start_time": min(timestamps) if timestamps else None,
             "end_time": max(timestamps) if timestamps else None,
+            "model": model,
+            "version": version,
+            "git_branch": git_branch,
+            "duration_ms": total_duration_ms,
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+            "cache_read_tokens": total_cache_read,
+            "cache_creation_tokens": total_cache_creation,
         }
 
         # Try to get conversation ID and session ID

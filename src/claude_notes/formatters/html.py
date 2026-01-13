@@ -149,9 +149,24 @@ class HTMLFormatter(BaseFormatter):
         if conversation_info.get("start_time"):
             parts.append(f'<dt>Created</dt><dd>{humanize_date(conversation_info["start_time"])}</dd>')
 
-        if conversation_info.get("session_id"):
-            session_short = conversation_info["session_id"][:8]
-            parts.append(f"<dt>Session</dt><dd>{session_short}</dd>")
+        if conversation_info.get("model"):
+            # Shorten model name (e.g., "claude-opus-4-5-20251101" -> "Opus 4.5")
+            model = conversation_info["model"]
+            if "opus" in model.lower():
+                model_short = "Opus 4.5"
+            elif "sonnet" in model.lower():
+                model_short = "Sonnet 4"
+            elif "haiku" in model.lower():
+                model_short = "Haiku"
+            else:
+                model_short = model.split("-")[1].title() if "-" in model else model
+            parts.append(f"<dt>Model</dt><dd>{model_short}</dd>")
+
+        if conversation_info.get("version"):
+            parts.append(f'<dt>CLI</dt><dd>v{conversation_info["version"]}</dd>')
+
+        if conversation_info.get("git_branch"):
+            parts.append(f'<dt>Branch</dt><dd>{html.escape(conversation_info["git_branch"])}</dd>')
 
         parts.append("</dl>")
         parts.append("</section>")
@@ -166,14 +181,55 @@ class HTMLFormatter(BaseFormatter):
             parts.append(f"<dt>Files</dt><dd>{total_files}</dd>")
 
         if self.stats["lines_added"] > 0 or self.stats["lines_removed"] > 0:
-            lines_str = f'+{self.stats["lines_added"]} -{self.stats["lines_removed"]}'
-            parts.append(f"<dt>Lines</dt><dd class='lines-changed'>{lines_str}</dd>")
+            added = f'<span class="lines-added">+{self.stats["lines_added"]}</span>'
+            removed = f'<span class="lines-removed">-{self.stats["lines_removed"]}</span>'
+            parts.append(f"<dt>Lines</dt><dd>{added} {removed}</dd>")
 
         if self.stats["tool_calls"] > 0:
             parts.append(f'<dt>Tools</dt><dd>{self.stats["tool_calls"]}</dd>')
 
+        if conversation_info.get("duration_ms", 0) > 0:
+            duration_s = conversation_info["duration_ms"] / 1000
+            if duration_s >= 3600:
+                duration_str = f"{duration_s / 3600:.1f}h"
+            elif duration_s >= 60:
+                duration_str = f"{duration_s / 60:.1f}m"
+            else:
+                duration_str = f"{duration_s:.1f}s"
+            parts.append(f"<dt>Duration</dt><dd>{duration_str}</dd>")
+
         parts.append("</dl>")
         parts.append("</section>")
+
+        # Token usage section
+        total_tokens = (
+            conversation_info.get("input_tokens", 0)
+            + conversation_info.get("output_tokens", 0)
+            + conversation_info.get("cache_read_tokens", 0)
+        )
+        if total_tokens > 0:
+            parts.append('<section class="sidebar-section">')
+            parts.append('<h3 class="sidebar-title">Tokens</h3>')
+            parts.append('<dl class="sidebar-stats">')
+
+            if conversation_info.get("input_tokens", 0) > 0:
+                parts.append(f'<dt>Input</dt><dd>{conversation_info["input_tokens"]:,}</dd>')
+
+            if conversation_info.get("output_tokens", 0) > 0:
+                parts.append(f'<dt>Output</dt><dd>{conversation_info["output_tokens"]:,}</dd>')
+
+            if conversation_info.get("cache_read_tokens", 0) > 0:
+                cache = conversation_info["cache_read_tokens"]
+                if cache >= 1_000_000:
+                    cache_str = f"{cache / 1_000_000:.1f}M"
+                elif cache >= 1_000:
+                    cache_str = f"{cache / 1_000:.1f}K"
+                else:
+                    cache_str = str(cache)
+                parts.append(f"<dt>Cache</dt><dd>{cache_str}</dd>")
+
+            parts.append("</dl>")
+            parts.append("</section>")
 
         # Files modified section
         edited_files = self.stats["files_edited"]
@@ -274,6 +330,16 @@ class HTMLFormatter(BaseFormatter):
 
         if role == "user":
             escaped = self._parse_special_tags_html(escaped)
+            # Trim long user messages with expandable option
+            if len(content) > 300:
+                preview = html.escape(content[:280].rsplit(" ", 1)[0])
+                preview = self._markdown_to_html(preview)
+                return f"""<div class="text-block user-text">
+<div class="user-preview">{preview}...</div>
+<details class="user-expand"><summary>Show more</summary>
+<div class="user-full">{escaped}</div>
+</details>
+</div>"""
 
         return f'<div class="text-block">{escaped}</div>'
 
@@ -394,25 +460,24 @@ class HTMLBashFormatter(HTMLToolFormatter):
         if isinstance(tool_result, dict) and "text" in tool_result:
             result_text = tool_result["text"]
 
+        # Calculate line count from output
+        line_count = 0
+        if result_text and str(result_text).strip():
+            line_count = len(str(result_text).strip().split("\n"))
+
         parts = []
-        parts.append('<div class="terminal-block">')
-        parts.append('<div class="terminal-header">')
+        parts.append('<details class="terminal-block">')
+        parts.append('<summary class="terminal-header">')
         parts.append('<span class="terminal-prompt">&gt;_</span>')
         parts.append(f'<code class="terminal-command">{html.escape(command)}</code>')
-        parts.append("</div>")
+        if line_count > 0:
+            parts.append(f'<span class="line-count">{line_count} lines</span>')
+        parts.append("</summary>")
 
         if result_text and str(result_text).strip():
-            lines = str(result_text).strip().split("\n")
-            if len(lines) > 5:
-                # Collapsible for long output
-                preview = "\n".join(lines[:3])
-                parts.append(f'<details class="terminal-output"><summary>{len(lines)} lines output</summary>')
-                parts.append(f"<pre>{html.escape(str(result_text).strip())}</pre>")
-                parts.append("</details>")
-            else:
-                parts.append(f'<pre class="terminal-output">{html.escape(str(result_text).strip())}</pre>')
+            parts.append(f'<pre class="terminal-output">{html.escape(str(result_text).strip())}</pre>')
 
-        parts.append("</div>")
+        parts.append("</details>")
         return "\n".join(parts)
 
 
@@ -473,24 +538,19 @@ class HTMLEditFormatter(HTMLToolFormatter):
         old_lines = old_string.split("\n") if old_string else []
         new_lines = new_string.split("\n") if new_string else []
 
-        diff = len(new_lines) - len(old_lines)
-        diff_str = f"+{diff}" if diff >= 0 else str(diff)
-
-        result_text = tool_result
-        if isinstance(tool_result, dict) and "text" in tool_result:
-            result_text = tool_result["text"]
-
-        success = result_text and "updated" in str(result_text).lower()
+        added_count = len(new_lines)
+        removed_count = len(old_lines)
+        total_lines = added_count + removed_count
 
         parts = []
-        parts.append('<div class="diff-block">')
-        parts.append('<div class="diff-header">')
+        parts.append('<details class="diff-block">')
+        parts.append('<summary class="diff-header">')
         parts.append(f'<span class="diff-icon">📝</span>')
         parts.append(f'<span class="diff-file">{html.escape(filename)}</span>')
-        parts.append(f'<span class="diff-lines">{diff_str}</span>')
-        if success:
-            parts.append('<span class="diff-success">✓</span>')
-        parts.append("</div>")
+        parts.append(f'<span class="diff-added">+{added_count}</span>')
+        parts.append(f'<span class="diff-removed">-{removed_count}</span>')
+        parts.append(f'<span class="line-count">{total_lines} lines</span>')
+        parts.append("</summary>")
 
         parts.append('<div class="diff-content">')
         for line in old_lines:
@@ -499,8 +559,7 @@ class HTMLEditFormatter(HTMLToolFormatter):
             parts.append(f'<div class="diff-line added">+ {html.escape(line)}</div>')
         parts.append("</div>")
 
-        parts.append('<div class="diff-progress"></div>')
-        parts.append("</div>")
+        parts.append("</details>")
         return "\n".join(parts)
 
 
@@ -518,12 +577,12 @@ class HTMLMultiEditFormatter(HTMLToolFormatter):
         filename = Path(file_path).name
 
         parts = []
-        parts.append('<div class="diff-block multi">')
-        parts.append('<div class="diff-header">')
+        parts.append('<details class="diff-block multi">')
+        parts.append('<summary class="diff-header">')
         parts.append(f'<span class="diff-icon">📝</span>')
         parts.append(f'<span class="diff-file">{html.escape(filename)}</span>')
         parts.append(f'<span class="diff-lines">{len(edits)} edits</span>')
-        parts.append("</div>")
+        parts.append("</summary>")
 
         for i, edit in enumerate(edits, 1):
             old_string = edit.get("old_string", "")
@@ -543,8 +602,7 @@ class HTMLMultiEditFormatter(HTMLToolFormatter):
                 parts.append(f'<div class="diff-line added">+ {html.escape(line)}</div>')
             parts.append("</div></div>")
 
-        parts.append('<div class="diff-progress"></div>')
-        parts.append("</div>")
+        parts.append("</details>")
         return "\n".join(parts)
 
 
@@ -886,8 +944,12 @@ body::before {
     font-family: "IBM Plex Mono", monospace;
 }
 
-.sidebar-stats .lines-changed {
+.sidebar-stats .lines-added {
     color: var(--success);
+}
+
+.sidebar-stats .lines-removed {
+    color: var(--danger);
 }
 
 .file-list {
@@ -959,6 +1021,34 @@ body::before {
 
 .message.user .text-block {
     margin-bottom: 0;
+}
+
+/* User text - trimmed with expand */
+.user-text .user-preview {
+    display: block;
+}
+
+.user-text .user-expand {
+    margin-top: 8px;
+}
+
+.user-text .user-expand summary {
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 0.8rem;
+}
+
+.user-text .user-expand[open] .user-preview {
+    display: none;
+}
+
+.user-text .user-expand[open] + .user-preview,
+.user-text:has(.user-expand[open]) .user-preview {
+    display: none;
+}
+
+.user-text .user-full {
+    margin-top: 8px;
 }
 
 /* Assistant messages - left-aligned with border bubble */
@@ -1063,6 +1153,11 @@ body::before {
     border: 1px solid var(--border);
     margin: 10px 0;
     font-size: 0.8rem;
+    transition: border-color 0.15s ease;
+}
+
+.tool-pill:hover {
+    border-color: var(--fg-muted);
 }
 
 .tool-pill summary {
@@ -1124,21 +1219,31 @@ body::before {
     font-style: italic;
 }
 
-/* Terminal Block */
+/* Terminal Block - collapsible like diff */
 .terminal-block {
     background: var(--bg);
     border: 1px solid var(--border);
     margin: 10px 0;
     overflow: hidden;
+    transition: border-color 0.15s ease;
 }
 
-.terminal-header {
+.terminal-block:hover {
+    border-color: var(--fg-muted);
+}
+
+.terminal-block > .terminal-header {
     padding: 10px 14px;
     display: flex;
     align-items: center;
     gap: 10px;
-    border-bottom: 1px solid var(--border);
     background: var(--bg-elevated);
+    cursor: pointer;
+    list-style: none;
+}
+
+.terminal-block > .terminal-header::-webkit-details-marker {
+    display: none;
 }
 
 .terminal-prompt {
@@ -1157,35 +1262,46 @@ body::before {
     font-size: 0.75rem;
     background: var(--bg);
     margin: 0;
-    max-height: 200px;
+    max-height: 300px;
     overflow: auto;
     color: var(--fg-muted);
 }
 
-.terminal-output summary {
-    padding: 8px 12px;
-    cursor: pointer;
-    color: var(--fg-muted);
+/* Line count - right-aligned */
+.line-count {
+    margin-left: auto;
+    color: var(--fg-subtle);
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
+    white-space: nowrap;
 }
 
-/* Diff Block */
+/* Diff Block - collapsible */
 .diff-block {
     background: var(--bg);
     border: 1px solid var(--border);
     margin: 10px 0;
     overflow: hidden;
+    transition: border-color 0.15s ease;
 }
 
-.diff-header {
+.diff-block:hover {
+    border-color: var(--fg-muted);
+}
+
+.diff-block > .diff-header {
     padding: 10px 14px;
     display: flex;
     align-items: center;
     gap: 10px;
-    border-bottom: 1px solid var(--border);
     background: var(--bg-elevated);
+    cursor: pointer;
+    list-style: none;
+}
+
+.diff-block > .diff-header::-webkit-details-marker {
+    display: none;
 }
 
 .diff-icon {
@@ -1199,21 +1315,18 @@ body::before {
     font-size: 0.85rem;
 }
 
-.diff-lines {
-    background: transparent;
-    border: 1px solid var(--success);
+.diff-added {
     color: var(--success);
-    padding: 4px 10px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
 }
 
-.diff-success {
-    color: var(--success);
-    margin-left: auto;
+.diff-removed {
+    color: var(--danger);
+    font-size: 0.75rem;
+    font-weight: 600;
 }
+
 
 .diff-content {
     padding: 8px 0;
@@ -1263,6 +1376,11 @@ body::before {
     border: 1px solid var(--border);
     margin: 6px 0;
     padding: 10px 12px;
+    transition: border-color 0.15s ease;
+}
+
+.todo-block:hover {
+    border-color: var(--fg-muted);
 }
 
 .todo-header {
