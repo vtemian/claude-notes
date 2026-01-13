@@ -585,123 +585,199 @@ def get_extra_html_css(css_file_path: str | None = None) -> str:
 
 
 def get_html_css() -> str:
-    """Return CSS styles for HTML output."""
+    """Return CSS styles for HTML output - nof1-inspired terminal aesthetic."""
     return """
 <style>
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@100;200;300;400;500;600;700&display=swap");
+
+:root {
+    --background: #ffffff;
+    --surface: #ffffff;
+    --surface-elevated: #f8f9fa;
+    --foreground: #000000;
+    --foreground-muted: #333333;
+    --foreground-subtle: #666666;
+    --border: #000000;
+    --border-subtle: #cccccc;
+    --terminal-green: #00aa00;
+    --terminal-red: #cc0000;
+    --terminal-yellow: #b8860b;
+    --terminal-blue: #0000aa;
+}
+
+[data-theme="dark"] {
+    --background: #000000;
+    --surface: #0a0a0a;
+    --surface-elevated: #111111;
+    --foreground: #00ff00;
+    --foreground-muted: #00cc00;
+    --foreground-subtle: #00aa00;
+    --border: #00ff00;
+    --border-subtle: #006600;
+    --terminal-green: #00ff00;
+    --terminal-red: #ff0000;
+    --terminal-yellow: #ffff00;
+    --terminal-blue: #00ffff;
+}
+
+*, *:before, *:after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "IBM Plex Mono", monospace;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    line-height: 1.5;
+    letter-spacing: -0.02em;
+}
+
+/* Noise texture overlay */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.5;
+}
+
 .conversation {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    max-width: 1200px;
+    position: relative;
+    z-index: 2;
+    max-width: 900px;
     margin: 0 auto;
-    padding: 20px;
-    line-height: 1.6;
+    padding: 40px 20px;
+}
+
+/* Headers - uppercase terminal style */
+h1, h2, h3, h4, h5, h6 {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    line-height: 1.2;
 }
 
 .conversation-header {
-    margin-bottom: 30px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid #e1e5e9;
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--border);
 }
 
 .conversation-header h2 {
     margin: 0;
-    color: #2c3e50;
+    color: var(--foreground);
+    font-size: 1.1rem;
 }
 
 .timestamp {
-    color: #6c757d;
-    font-size: 0.9em;
-    margin-top: 5px;
+    color: var(--foreground-subtle);
+    font-size: 0.75rem;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.message-nav {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
+/* Navigation */
+.message-nav, .conversation-nav {
+    background-color: var(--surface);
+    border: 1px solid var(--border);
     padding: 20px;
     margin-bottom: 30px;
 }
 
-.message-nav h3 {
+.message-nav h3, .conversation-nav h2 {
     margin: 0 0 15px 0;
-    color: #2c3e50;
-    font-size: 1.1em;
+    color: var(--foreground);
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 10px;
 }
 
-.message-toc {
+.message-toc, .conversation-toc {
     list-style: none;
     padding: 0;
     margin: 0;
 }
 
-.message-toc li {
-    margin-bottom: 8px;
+.message-toc li, .conversation-toc li {
+    margin-bottom: 4px;
 }
 
-.message-toc a {
-    color: #007bff;
+.message-toc a, .conversation-toc a {
+    color: var(--foreground);
     text-decoration: none;
-    padding: 8px 12px;
-    border-radius: 4px;
+    padding: 6px 10px;
     display: block;
-    transition: background-color 0.2s;
+    font-size: 0.8rem;
+    border: 1px solid transparent;
+    transition: none;
 }
 
-.message-toc a:hover {
-    background-color: #e9ecef;
+.message-toc a:hover, .conversation-toc a:hover {
+    background-color: var(--foreground);
+    color: var(--background);
     text-decoration: none;
 }
 
+/* Message sections */
 .message-header {
-    margin: 40px 0 20px 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e1e5e9;
+    margin: 50px 0 15px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
 }
 
 .message-title {
     margin: 0;
-    color: #2c3e50;
-    font-size: 1.3em;
+    color: var(--foreground);
+    font-size: 0.875rem;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .anchor-link {
-    color: #6c757d;
+    color: var(--foreground-subtle);
     text-decoration: none;
     font-weight: normal;
-    transition: opacity 0.2s;
+    font-size: 0.75rem;
 }
 
 .anchor-link:hover {
-    color: #007bff;
+    color: var(--foreground);
 }
 
 .message-timestamp {
-    color: #6c757d;
-    font-size: 0.8em;
+    color: var(--foreground-subtle);
+    font-size: 0.7rem;
     font-weight: normal;
-    margin-top: 2px;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 .message-group {
-    margin-bottom: 25px;
-    display: flex;
-    gap: 15px;
+    margin-bottom: 30px;
 }
 
 .message-group.user {
-    flex-direction: row;
+    border-left: 3px solid var(--foreground);
+    padding-left: 15px;
 }
 
 .message-group.assistant {
-    flex-direction: row;
-}
-
-.role-indicator {
-    flex-shrink: 0;
-    font-size: 1.2em;
-    margin-top: 5px;
+    border-left: 3px solid var(--foreground-subtle);
+    padding-left: 15px;
 }
 
 .message-content {
@@ -709,236 +785,255 @@ def get_html_css() -> str:
     min-width: 0;
 }
 
-.conversation-nav {
-    background-color: #f1f3f4;
-    border: 1px solid #dadce0;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 30px;
-}
-
-.conversation-nav h2 {
-    margin: 0 0 15px 0;
-    color: #2c3e50;
-    font-size: 1.2em;
-}
-
-.conversation-toc {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.conversation-toc li {
-    margin-bottom: 10px;
-}
-
-.conversation-toc a {
-    color: #1a73e8;
-    text-decoration: none;
-    padding: 10px 15px;
-    border-radius: 6px;
-    display: block;
-    background-color: white;
-    border: 1px solid #dadce0;
-    transition: all 0.2s;
-}
-
-.conversation-toc a:hover {
-    background-color: #f8f9fa;
-    border-color: #1a73e8;
-    text-decoration: none;
-}
-
+/* Back to top */
 .back-to-top {
     text-align: center;
-    margin: 40px 0 20px 0;
+    margin: 50px 0 20px 0;
     padding-top: 20px;
-    border-top: 1px solid #e1e5e9;
+    border-top: 1px solid var(--border);
 }
 
 .back-to-top a {
-    color: #6c757d;
+    color: var(--foreground);
     text-decoration: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    transition: all 0.2s;
+    padding: 8px 16px;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
     display: inline-block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: none;
 }
 
 .back-to-top a:hover {
-    color: #007bff;
-    background-color: #e9ecef;
-    text-decoration: none;
+    background-color: var(--foreground);
+    color: var(--background);
 }
 
+/* Text content */
 .text-content {
     margin-bottom: 15px;
+    font-size: 0.875rem;
+    line-height: 1.6;
 }
 
 .text-content h1, .text-content h2, .text-content h3 {
-    margin: 20px 0 10px 0;
-    color: #2c3e50;
+    margin: 25px 0 12px 0;
+    color: var(--foreground);
 }
 
+.text-content h1 { font-size: 1rem; }
+.text-content h2 { font-size: 0.9rem; }
+.text-content h3 { font-size: 0.85rem; }
+
 .text-content code {
-    background-color: #f8f9fa;
+    background-color: var(--surface-elevated);
     padding: 2px 6px;
-    border-radius: 4px;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 0.9em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.85em;
+    border: 1px solid var(--border-subtle);
 }
 
 .text-content strong {
     font-weight: 600;
 }
 
+/* Tool blocks - terminal style */
 .tool-use {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    padding: 15px;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 15px;
     margin: 15px 0;
+    font-size: 0.8rem;
 }
 
 .tool-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 10px;
-    font-size: 1.1em;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 .tool-icon {
-    font-size: 1.2em;
+    font-size: 1em;
 }
 
 .bash-tool .tool-header {
-    color: #dc3545;
+    color: var(--terminal-red);
 }
 
 .read-tool .tool-header {
-    color: #28a745;
+    color: var(--terminal-green);
 }
 
-.edit-tool .tool-header {
-    color: #ffc107;
-}
-
+.edit-tool .tool-header,
 .multiedit-tool .tool-header {
-    color: #ffc107;
+    color: var(--terminal-yellow);
 }
 
 .grep-tool .tool-header {
-    color: #17a2b8;
+    color: var(--terminal-blue);
 }
 
-.tool-output, .file-preview, .diff-preview {
-    background-color: #ffffff;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    padding: 10px;
+.tool-output, .file-preview, .diff-preview, .multiedit-preview {
+    background-color: var(--surface-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 10px 12px;
     margin-top: 10px;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 0.9em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.75rem;
+    overflow-x: auto;
 }
 
 .output-line, .file-line {
-    margin-bottom: 2px;
+    margin-bottom: 1px;
+    white-space: pre-wrap;
+    word-break: break-all;
 }
 
 .output-summary {
-    color: #6c757d;
+    color: var(--foreground-subtle);
     font-style: italic;
-    margin-top: 5px;
+    margin-top: 8px;
+    font-size: 0.7rem;
 }
 
-.file-info {
-    color: #6c757d;
-    font-size: 0.9em;
+.file-info, .edit-info, .grep-info {
+    color: var(--foreground-subtle);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
-.edit-info {
-    color: #6c757d;
-    font-size: 0.9em;
+.edit-info, .grep-info {
     margin-left: 10px;
 }
 
 .success-indicator {
-    color: #28a745;
-    margin-left: 10px;
+    color: var(--terminal-green);
+    margin-left: 8px;
 }
 
+/* Diff styling */
 .diff-line {
-    margin-bottom: 2px;
-    padding: 2px 0;
+    margin-bottom: 1px;
+    padding: 1px 4px;
+    font-family: "IBM Plex Mono", monospace;
 }
 
 .diff-line.removed {
-    background-color: #ffe6e6;
-    color: #d73a49;
+    background-color: rgba(204, 0, 0, 0.15);
+    color: var(--terminal-red);
 }
 
 .diff-line.added {
-    background-color: #e6ffed;
-    color: #28a745;
+    background-color: rgba(0, 170, 0, 0.15);
+    color: var(--terminal-green);
 }
 
+[data-theme="dark"] .diff-line.removed {
+    background-color: rgba(255, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .diff-line.added {
+    background-color: rgba(0, 255, 0, 0.15);
+}
+
+/* Special tags */
 .command-message {
     font-style: italic;
-    color: #6c757d;
+    color: var(--foreground-subtle);
 }
 
 .command-name {
     font-weight: 600;
-    color: #007bff;
+    color: var(--terminal-blue);
 }
 
 .system-reminder {
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-radius: 4px;
-    padding: 10px;
-    margin: 10px 0;
-    color: #856404;
+    background-color: rgba(184, 134, 11, 0.1);
+    border: 1px solid var(--terminal-yellow);
+    border-left: 3px solid var(--terminal-yellow);
+    padding: 10px 12px;
+    margin: 12px 0;
+    color: var(--foreground);
+    font-size: 0.75rem;
 }
 
 .unknown-tool {
-    border-left: 4px solid #6c757d;
+    border-left: 3px solid var(--foreground-subtle);
 }
 
-.multiedit-preview {
-    background-color: #ffffff;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    padding: 10px;
-    margin-top: 10px;
-}
-
+/* Multi-edit sections */
 .edit-section {
     margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .edit-section:last-child {
     border-bottom: none;
     margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 .edit-number {
     font-weight: 600;
-    color: #495057;
-    margin-bottom: 5px;
-    font-size: 0.9em;
+    color: var(--foreground);
+    margin-bottom: 6px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
-.grep-info {
-    color: #6c757d;
-    font-size: 0.9em;
-    margin-bottom: 10px;
+/* Theme toggle button (optional) */
+.theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    padding: 6px 12px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+}
+
+.theme-toggle:hover {
+    background: var(--foreground);
+    color: var(--background);
+}
+
+/* Scrollbar hiding */
+* {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Print styles */
+@media print {
+    body::before {
+        display: none;
+    }
+    .theme-toggle {
+        display: none;
+    }
+    .conversation {
+        max-width: 100%;
+        padding: 0;
+    }
 }
 </style>
 """

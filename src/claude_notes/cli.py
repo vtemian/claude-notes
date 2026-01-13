@@ -324,7 +324,9 @@ def show(
         html_parts.append(get_html_css())
         html_parts.append(get_extra_html_css(style))
         html_parts.append("</head>")
-        html_parts.append("<body>")
+        html_parts.append('<body id="top">')
+        # Theme toggle button and script
+        html_parts.append('<button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>')
         html_parts.append('<div class="container">')
 
         # Add conversation navigation if multiple conversations
@@ -345,7 +347,7 @@ def show(
             html_content = formatter.format_conversation(ordered_messages, conv["info"])
             html_parts.append(html_content)
             if i < len(conversations) - 1:
-                html_parts.append('<hr style="margin: 40px 0; border: 1px solid #e1e5e9;">')
+                html_parts.append('<hr style="margin: 50px 0; border: none; border-top: 1px solid var(--border);">')
 
         # Add back to top link
         html_parts.append('<div class="back-to-top">')
@@ -353,6 +355,21 @@ def show(
         html_parts.append("</div>")
 
         html_parts.append("</div>")
+        # Theme toggle JavaScript
+        html_parts.append("""<script>
+function toggleTheme() {
+    const html = document.documentElement;
+    const currentTheme = html.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+}
+// Load saved theme or default to light
+const savedTheme = localStorage.getItem('theme') || 'light';
+if (savedTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+}
+</script>""")
         html_parts.append("</body>")
         html_parts.append("</html>")
 
