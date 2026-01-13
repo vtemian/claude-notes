@@ -38,8 +38,8 @@ def _decode_segments(encoded: str, separator: str) -> str:
 
 
 def _encode_segments(path: str) -> str:
-    """Encode path segments by escaping literal dashes."""
-    return path.replace("-", "--").replace("/", "-")
+    """Encode path segments by replacing slashes with dashes."""
+    return path.replace("/", "-")
 
 
 def decode_project_path(encoded_name: str) -> str:
