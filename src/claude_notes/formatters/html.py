@@ -545,7 +545,7 @@ class HTMLEditFormatter(HTMLToolFormatter):
         parts = []
         parts.append('<details class="diff-block">')
         parts.append('<summary class="diff-header">')
-        parts.append(f'<span class="diff-icon">📝</span>')
+        parts.append('<span class="diff-icon">📝</span>')
         parts.append(f'<span class="diff-file">{html.escape(filename)}</span>')
         parts.append(f'<span class="diff-added">+{added_count}</span>')
         parts.append(f'<span class="diff-removed">-{removed_count}</span>')
@@ -579,7 +579,7 @@ class HTMLMultiEditFormatter(HTMLToolFormatter):
         parts = []
         parts.append('<details class="diff-block multi">')
         parts.append('<summary class="diff-header">')
-        parts.append(f'<span class="diff-icon">📝</span>')
+        parts.append('<span class="diff-icon">📝</span>')
         parts.append(f'<span class="diff-file">{html.escape(filename)}</span>')
         parts.append(f'<span class="diff-lines">{len(edits)} edits</span>')
         parts.append("</summary>")
@@ -623,7 +623,7 @@ class HTMLGrepFormatter(HTMLToolFormatter):
 
         match_count = 0
         if result_text:
-            lines = [l for l in str(result_text).strip().split("\n") if l.strip()]
+            lines = [line for line in str(result_text).strip().split("\n") if line.strip()]
             match_count = len(lines)
 
         path_display = Path(path).name if path != "." else "project"
