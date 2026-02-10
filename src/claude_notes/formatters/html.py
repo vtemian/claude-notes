@@ -995,15 +995,6 @@ body::before {
     gap: 48px;
 }
 
-@media (max-width: 1000px) {
-    .thread-body {
-        grid-template-columns: 1fr;
-    }
-    .thread-sidebar {
-        order: -1;
-    }
-}
-
 .thread-content {
     min-width: 0;
 }
@@ -1013,6 +1004,73 @@ body::before {
     position: sticky;
     top: 32px;
     height: fit-content;
+}
+
+/* Burger menu button */
+.burger-menu {
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 100px;
+    z-index: 100;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 10px 16px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.65rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+}
+
+.burger-menu:hover {
+    background: var(--fg);
+    color: var(--bg);
+}
+
+/* Sidebar overlay */
+.sidebar-overlay {
+    display: none;
+}
+
+/* Mobile responsive */
+@media (max-width: 1000px) {
+    .thread-body {
+        grid-template-columns: 1fr;
+    }
+    .burger-menu {
+        display: block;
+    }
+    .thread-sidebar {
+        position: fixed;
+        top: 0;
+        right: -300px;
+        width: 280px;
+        height: 100vh;
+        background: var(--bg);
+        border-left: 1px solid var(--border);
+        padding: 60px 20px 20px;
+        overflow-y: auto;
+        transition: right 0.3s ease;
+        z-index: 200;
+    }
+    .thread-sidebar.open {
+        right: 0;
+    }
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 150;
+    }
+    .sidebar-overlay.open {
+        display: block;
+    }
 }
 
 .sidebar-section {

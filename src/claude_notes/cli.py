@@ -329,8 +329,10 @@ def show(
         html_parts.append(get_extra_html_css(style))
         html_parts.append("</head>")
         html_parts.append('<body id="top">')
-        # Theme toggle button and script
-        html_parts.append('<button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>')
+        # Theme toggle and burger menu buttons
+        html_parts.append('<button class="theme-toggle" onclick="toggleTheme()">Theme</button>')
+        html_parts.append('<button class="burger-menu" onclick="toggleSidebar()">Stats</button>')
+        html_parts.append('<div class="sidebar-overlay" onclick="toggleSidebar()"></div>')
         html_parts.append('<div class="container">')
 
         # Add conversation navigation if multiple conversations
@@ -368,11 +370,15 @@ function toggleTheme() {
     html.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
 }
-// Load saved theme or default to light
-const savedTheme = localStorage.getItem('theme') || 'light';
-if (savedTheme === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
+function toggleSidebar() {
+    const sidebars = document.querySelectorAll('.thread-sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    sidebars.forEach(sidebar => sidebar.classList.toggle('open'));
+    if (overlay) overlay.classList.toggle('open');
 }
+// Load saved theme or default to dark
+const savedTheme = localStorage.getItem('theme') || 'dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
 </script>""")
         html_parts.append("</body>")
         html_parts.append("</html>")
