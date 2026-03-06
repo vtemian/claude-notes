@@ -147,7 +147,7 @@ class HTMLFormatter(BaseFormatter):
         parts.append('<dl class="sidebar-stats">')
 
         if conversation_info.get("start_time"):
-            parts.append(f'<dt>Created</dt><dd>{humanize_date(conversation_info["start_time"])}</dd>')
+            parts.append(f"<dt>Created</dt><dd>{humanize_date(conversation_info['start_time'])}</dd>")
 
         if conversation_info.get("model"):
             # Shorten model name (e.g., "claude-opus-4-5-20251101" -> "Opus 4.5")
@@ -163,10 +163,10 @@ class HTMLFormatter(BaseFormatter):
             parts.append(f"<dt>Model</dt><dd>{model_short}</dd>")
 
         if conversation_info.get("version"):
-            parts.append(f'<dt>CLI</dt><dd>v{conversation_info["version"]}</dd>')
+            parts.append(f"<dt>CLI</dt><dd>v{conversation_info['version']}</dd>")
 
         if conversation_info.get("git_branch"):
-            parts.append(f'<dt>Branch</dt><dd>{html.escape(conversation_info["git_branch"])}</dd>')
+            parts.append(f"<dt>Branch</dt><dd>{html.escape(conversation_info['git_branch'])}</dd>")
 
         parts.append("</dl>")
         parts.append("</section>")
@@ -186,7 +186,7 @@ class HTMLFormatter(BaseFormatter):
             parts.append(f"<dt>Lines</dt><dd>{added} {removed}</dd>")
 
         if self.stats["tool_calls"] > 0:
-            parts.append(f'<dt>Tools</dt><dd>{self.stats["tool_calls"]}</dd>')
+            parts.append(f"<dt>Tools</dt><dd>{self.stats['tool_calls']}</dd>")
 
         if conversation_info.get("duration_ms", 0) > 0:
             duration_s = conversation_info["duration_ms"] / 1000
@@ -213,10 +213,10 @@ class HTMLFormatter(BaseFormatter):
             parts.append('<dl class="sidebar-stats">')
 
             if conversation_info.get("input_tokens", 0) > 0:
-                parts.append(f'<dt>Input</dt><dd>{conversation_info["input_tokens"]:,}</dd>')
+                parts.append(f"<dt>Input</dt><dd>{conversation_info['input_tokens']:,}</dd>")
 
             if conversation_info.get("output_tokens", 0) > 0:
-                parts.append(f'<dt>Output</dt><dd>{conversation_info["output_tokens"]:,}</dd>')
+                parts.append(f"<dt>Output</dt><dd>{conversation_info['output_tokens']:,}</dd>")
 
             if conversation_info.get("cache_read_tokens", 0) > 0:
                 cache = conversation_info["cache_read_tokens"]
