@@ -19,31 +19,118 @@ def get_claude_projects_dir() -> Path:
 
 
 def _decode_segments(encoded: str, separator: str) -> str:
-    """Decode dash-separated segments, where '--' represents a literal dash."""
-    decoded_parts: list[str] = []
-    i = 0
-    while i < len(encoded):
-        char = encoded[i]
-        if char == "-":
-            if i + 1 < len(encoded) and encoded[i + 1] == "-":
-                decoded_parts.append("-")
+    """Decode dash-separated segments where every '-' becomes the separator.
+
+    This is a simple fallback used for Windows paths or when filesystem
+    checks are not applicable.
+    """
+    return encoded.replace("-", separator)
+
+
+def _decode_path_with_fs_check(encoded: str) -> str:
+    """Decode an encoded path body, using filesystem checks to resolve ambiguity.
+
+    Claude Code encodes paths by replacing '/', '.', and keeping literal '-' all as '-'.
+    The encoding is lossy, so every '-' could represent '/', '.', or a literal '-'.
+    We resolve ambiguity by greedily checking candidate path prefixes against the filesystem.
+
+    Strategy: split on every '-' to get text fragments, then greedily try to merge
+    adjacent fragments with '.' or '-' when the resulting prefix exists on disk.
+    Default separator is '/' when neither '.' nor '-' produces an existing path.
+    """
+    # Split on every dash to get text fragments.
+    # Consecutive dashes produce empty strings — we keep them as they represent
+    # boundaries where adjacent special chars were encoded (e.g., '/.' → '--').
+    fragments = encoded.split("-")
+
+    if len(fragments) <= 1:
+        return encoded
+
+    # Build path components greedily from left to right.
+    # Start with the first fragment as the current component.
+    components: list[str] = [fragments[0]]
+
+    i = 1
+    while i < len(fragments):
+        frag = fragments[i]
+
+        # Handle empty fragments from consecutive dashes.
+        # An empty fragment means two dashes were adjacent, which could represent
+        # '/.' (hidden file/dir) or a literal '-' in the previous component.
+        if frag == "" and i + 1 < len(fragments):
+            next_frag = fragments[i + 1]
+
+            # Try '/.' interpretation (e.g., '/.claude')
+            dot_prefixed = "." + next_frag
+            dot_prefixed_path = "/" + "/".join(components + [dot_prefixed])
+            if Path(dot_prefixed_path).exists():
+                components.append(dot_prefixed)
                 i += 2
-            else:
-                decoded_parts.append(separator)
-                i += 1
-        else:
-            decoded_parts.append(char)
+                continue
+
+            # Try literal '-' interpretation (e.g., 'foo--bar' → 'foo-bar')
+            dash_merged = components[-1] + "-" + next_frag
+            dash_prefix = "/" + "/".join(components[:-1] + [dash_merged])
+            if Path(dash_prefix).exists():
+                components[-1] = dash_merged
+                i += 2
+                continue
+
+            # No filesystem match — default to '/' for both dashes
             i += 1
-    return "".join(decoded_parts)
+            continue
+
+        # Try merging with '.' (e.g., "alex" + "." + "reilly" = "alex.reilly")
+        dot_merged = components[-1] + "." + frag
+        dot_prefix = "/" + "/".join(components[:-1] + [dot_merged])
+
+        # Try merging with '-' (e.g., "memory" + "-" + "daemon" = "memory-daemon")
+        dash_merged = components[-1] + "-" + frag
+        dash_prefix = "/" + "/".join(components[:-1] + [dash_merged])
+
+        # Try as new path component with '/' (default)
+        slash_prefix = "/" + "/".join(components + [frag])
+
+        # Try '.' prefix on fragment (for hidden dirs like .claude)
+        dot_prefixed = "." + frag
+        dot_prefixed_path = "/" + "/".join(components + [dot_prefixed])
+
+        if Path(dot_prefix).exists():
+            components[-1] = dot_merged
+        elif Path(dot_prefixed_path).exists():
+            components.append(dot_prefixed)
+        elif Path(dash_prefix).exists():
+            components[-1] = dash_merged
+        elif Path(slash_prefix).exists():
+            components.append(frag)
+        else:
+            # No match on filesystem — default to '/' separator
+            components.append(frag)
+
+        i += 1
+
+    return "/".join(components)
 
 
 def _encode_segments(path: str) -> str:
-    """Encode path segments by replacing slashes with dashes."""
-    return path.replace("/", "-")
+    """Encode path segments by replacing '/' and '.' with dashes.
+
+    Note: Claude Code does NOT escape literal dashes. A '-' in the original path
+    stays as '-' in the encoded form. This means the encoding is lossy — a '-' in
+    the encoded name could be '/', '.', or a literal '-'.
+    """
+    result = path.replace("/", "-")
+    result = result.replace(".", "-")
+    return result
 
 
 def decode_project_path(encoded_name: str) -> str:
-    """Decode the project folder name to actual path."""
+    """Decode the project folder name to actual path.
+
+    Claude Code encodes '/', '.', and other special chars as '-', and literal
+    dashes as '--'. We use filesystem checks to resolve the ambiguity between
+    '/' and '.' when decoding.
+    """
     # Windows path (e.g., "C--Users-projects-my--project")
     if len(encoded_name) >= 3 and encoded_name[1:3] == "--" and encoded_name[0].isalpha():
         drive = encoded_name[0]
@@ -54,7 +141,7 @@ def decode_project_path(encoded_name: str) -> str:
     # Unix/Linux path (e.g., "-home-user-my--project")
     if encoded_name.startswith("-"):
         encoded_body = encoded_name[1:]
-        decoded_body = _decode_segments(encoded_body, "/")
+        decoded_body = _decode_path_with_fs_check(encoded_body)
         return "/" + decoded_body
 
     # Fallback: return as-is if it doesn't match expected encodings
