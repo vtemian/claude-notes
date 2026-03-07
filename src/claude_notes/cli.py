@@ -56,18 +56,27 @@ def _decode_path_with_fs_check(encoded: str) -> str:
 
         # Handle empty fragments from consecutive dashes.
         # An empty fragment means two dashes were adjacent, which could represent
-        # combinations like '/.' (hidden file/dir after separator).
+        # '/.' (hidden file/dir) or a literal '-' in the previous component.
         if frag == "" and i + 1 < len(fragments):
-            # Look ahead: try '/.' interpretation (e.g., '/.claude')
             next_frag = fragments[i + 1]
+
+            # Try '/.' interpretation (e.g., '/.claude')
             dot_prefixed = "." + next_frag
             dot_prefixed_path = "/" + "/".join(components + [dot_prefixed])
             if Path(dot_prefixed_path).exists():
                 components.append(dot_prefixed)
                 i += 2
                 continue
-            # Fall through: treat the empty fragment as a '/' then continue
-            # with next fragment normally
+
+            # Try literal '-' interpretation (e.g., 'foo--bar' → 'foo-bar')
+            dash_merged = components[-1] + "-" + next_frag
+            dash_prefix = "/" + "/".join(components[:-1] + [dash_merged])
+            if Path(dash_prefix).exists():
+                components[-1] = dash_merged
+                i += 2
+                continue
+
+            # No filesystem match — default to '/' for both dashes
             i += 1
             continue
 
